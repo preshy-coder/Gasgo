@@ -1,0 +1,140 @@
+// Dealer view of one order: accept / reject, then move it through the remaining steps.
+import { useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { MapPin, Navigation, Phone } from 'lucide-react'
+import { errorMessage } from '../../api'
+import { StatusTimeline } from '../../components/StatusTimeline'
+import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../../components/ui'
+import { useDealerAccept, useDealerReject, useDealerSetStatus, useOrder } from '../../hooks/queries'
+import { displayPhone, formatKes, productName, productTypeLabel } from '../../lib/format'
+import type { OrderStatus } from '../../types'
+
+const REJECT_REASONS = ['Out of stock', 'Too far to deliver', 'Closing soon', 'Other']
+
+export default function DealerOrderDetail() {
+  const id = Number(useParams().id)
+  const order = useOrder(id)
+  const accept = useDealerAccept()
+  const reject = useDealerReject()
+  const setStatus = useDealerSetStatus()
+  const [rejecting, setRejecting] = useState(false)
+
+  if (order.isPending) return <Spinner />
+  if (order.isError)
+    return (
+      <div className="p-4">
+        <ErrorBox message={errorMessage(order.error)} onRetry={() => order.refetch()} />
+      </div>
+    )
+
+  const o = order.data
+  const error = accept.error ?? reject.error ?? setStatus.error
+
+  let next: { status: OrderStatus; label: string } | null = null
+  if (o.status === 'accepted') {
+    next = o.type === 'delivery' ? { status: 'out_for_delivery', label: 'Send out for delivery' } : { status: 'ready_for_pickup', label: 'Mark ready for pickup' }
+  } else if (o.status === 'out_for_delivery') next = { status: 'delivered', label: 'Mark as delivered' }
+  else if (o.status === 'ready_for_pickup') next = { status: 'collected', label: 'Mark as collected' }
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <PageHeader title={`Order ${o.order_number}`} back="/dealer" />
+      <div className="flex-1 space-y-3 p-4">
+        <Card>
+          <div className="flex items-center justify-between">
+            <StatusBadge status={o.status} />
+            <span className="text-sm font-semibold">{o.type === 'delivery' ? 'Delivery' : 'Pickup'}</span>
+          </div>
+          <ul className="mt-3 space-y-1.5">
+            {o.items.map((i) => (
+              <li key={i.product.id} className="flex justify-between">
+                <span>
+                  <span className="text-lg font-bold">{i.quantity}×</span> {productName(i.product)}
+                  <span className="block text-xs text-slate-500">{productTypeLabel(i.product)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 border-t border-slate-100 pt-2 text-sm">
+            Paid {formatKes(o.total_kes)}
+            {o.mpesa_receipt && <span className="text-slate-500"> · {o.mpesa_receipt}</span>}
+          </p>
+        </Card>
+
+        <Card>
+          <p className="text-xs text-slate-500">Customer</p>
+          <div className="flex items-center justify-between">
+            <p className="font-medium">{o.customer?.name}</p>
+            {o.customer && (
+              <a href={`tel:+${o.customer.phone}`} className="flex items-center gap-1 text-sm font-semibold text-brand-700">
+                <Phone className="h-4 w-4" /> {displayPhone(o.customer.phone)}
+              </a>
+            )}
+          </div>
+          {o.type === 'delivery' && o.address && (
+            <div className="mt-3 flex gap-2 border-t border-slate-100 pt-3">
+              <MapPin className="h-5 w-5 shrink-0 text-brand-600" />
+              <div className="flex-1">
+                <p className="text-sm">{o.address.formatted_address}</p>
+                {o.address.landmark_notes && <p className="text-sm text-slate-500">{o.address.landmark_notes}</p>}
+                <a
+                  className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-brand-700"
+                  target="_blank"
+                  rel="noreferrer"
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${o.address.lat},${o.address.lng}`}
+                >
+                  <Navigation className="h-4 w-4" /> Navigate
+                </a>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <StatusTimeline order={o} />
+        </Card>
+
+        {rejecting && (
+          <Card>
+            <p className="mb-2 font-semibold">Why are you rejecting this order?</p>
+            <p className="mb-3 text-sm text-slate-500">The customer will be refunded.</p>
+            <div className="flex flex-wrap gap-2">
+              {REJECT_REASONS.map((r) => (
+                <Button key={r} variant="danger" className="py-2 text-sm" loading={reject.isPending} onClick={() => reject.mutate({ id, reason: r }, { onSuccess: () => setRejecting(false) })}>
+                  {r}
+                </Button>
+              ))}
+            </div>
+            <Button variant="ghost" className="mt-2 text-slate-600" onClick={() => setRejecting(false)}>
+              Keep order
+            </Button>
+          </Card>
+        )}
+
+        {error && <ErrorBox message={errorMessage(error)} />}
+      </div>
+
+      {(o.status === 'paid' || next) && !rejecting && (
+        <BottomBar>
+          <div className="mb-1 flex gap-2">
+            {o.status === 'paid' && (
+              <>
+                <Button variant="danger" onClick={() => setRejecting(true)}>
+                  Reject
+                </Button>
+                <Button full loading={accept.isPending} onClick={() => accept.mutate(id)}>
+                  Accept order
+                </Button>
+              </>
+            )}
+            {next && (
+              <Button full loading={setStatus.isPending} onClick={() => setStatus.mutate({ id, status: next.status })}>
+                {next.label}
+              </Button>
+            )}
+          </div>
+        </BottomBar>
+      )}
+    </div>
+  )
+}

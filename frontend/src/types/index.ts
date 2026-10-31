@@ -1,0 +1,144 @@
+// Shapes returned by the Django REST API.
+// These mirror the "Data shapes" section of the kickoff agreement doc.
+// If the backend renames a field, update it here and TypeScript will show every place that breaks.
+
+export type Role = 'customer' | 'dealer' | 'rider'
+
+export interface User {
+  id: number
+  phone: string // 2547XXXXXXXX
+  name: string
+  role: Role
+  dealer_id?: number | null // set when role is "dealer"
+}
+
+export interface AuthTokens {
+  access: string
+  refresh: string
+}
+
+export interface VerifyOtpResponse extends AuthTokens {
+  user: User
+  is_new_user: boolean
+}
+
+export type ProductType = 'refill' | 'new_cylinder'
+
+export interface Product {
+  id: number
+  brand: string
+  size_kg: number
+  type: ProductType
+  price_kes: number
+  image_url: string | null
+  is_active: boolean
+}
+
+export interface DealerStock {
+  product_id: number
+  quantity: number
+}
+
+export interface Dealer {
+  id: number
+  name: string
+  phone: string
+  lat: number
+  lng: number
+  address: string
+  opening_hours: string
+  delivery_radius_km: number
+  is_open: boolean
+  stock: DealerStock[]
+  distance_km?: number
+}
+
+export interface Address {
+  id: number
+  label: string
+  lat: number
+  lng: number
+  formatted_address: string
+  landmark_notes: string
+}
+
+export type NewAddress = Omit<Address, 'id'>
+
+export type OrderType = 'delivery' | 'pickup'
+
+export type OrderStatus =
+  | 'placed'
+  | 'paid'
+  | 'accepted'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'ready_for_pickup'
+  | 'collected'
+  | 'payment_failed'
+  | 'rejected_by_dealer'
+  | 'cancelled'
+
+export interface OrderItem {
+  product: Product
+  quantity: number
+  unit_price_kes: number
+}
+
+export interface StatusChange {
+  status: OrderStatus
+  at: string // ISO 8601
+}
+
+export interface Order {
+  id: number
+  order_number: string
+  type: OrderType
+  status: OrderStatus
+  items: OrderItem[]
+  dealer: Dealer
+  address: Address | null // null for pickup
+  customer?: { name: string; phone: string }
+  subtotal_kes: number
+  delivery_fee_kes: number
+  total_kes: number
+  mpesa_receipt: string | null
+  status_history: StatusChange[]
+  created_at: string
+}
+
+export interface CartLine {
+  product_id: number
+  quantity: number
+}
+
+export interface QuoteRequest {
+  type: OrderType
+  dealer_id: number
+  address_id?: number
+  items: CartLine[]
+}
+
+export interface Quote {
+  subtotal_kes: number
+  delivery_fee_kes: number
+  total_kes: number
+}
+
+export type CreateOrderRequest = QuoteRequest
+
+export interface PayResponse {
+  checkout_request_id: string
+}
+
+export interface Paginated<T> {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
+export interface ApiErrorBody {
+  error: string
+  code?: string
+  field_errors?: Record<string, string[]>
+}
