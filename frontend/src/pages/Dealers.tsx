@@ -6,6 +6,7 @@ import { errorMessage } from '../api'
 import { getCurrentPosition, type LatLng } from '../lib/location'
 import { EmptyState, ErrorBox, PageHeader, Spinner } from '../components/ui'
 import { useAddresses, useDealers } from '../hooks/queries'
+import { formatKes } from '../lib/format'
 import { useCart } from '../store/cart'
 import type { Dealer } from '../types'
 
@@ -40,6 +41,10 @@ export default function Dealers() {
     }
     return { ok: true }
   }
+
+  // This shop's price for the whole cart (each shop sets its own prices).
+  const cartPrice = (d: Dealer) =>
+    items.reduce((sum, i) => sum + (d.stock.find((st) => st.product_id === i.product_id)?.price_kes ?? 0) * i.quantity, 0)
 
   const sorted = [...(dealers.data ?? [])].sort((a, b) => Number(availability(b).ok) - Number(availability(a).ok))
 
@@ -91,7 +96,10 @@ export default function Dealers() {
                     <Clock className="h-3.5 w-3.5" /> {d.opening_hours}
                   </p>
                   {a.ok ? (
-                    <p className="mt-2 text-sm font-medium text-green-700">In stock · tap to continue</p>
+                    <p className="mt-2 flex items-center justify-between gap-2 text-sm font-medium text-green-700">
+                      <span>In stock · tap to continue</span>
+                      <span className="font-semibold text-ink tabular-nums">{formatKes(cartPrice(d))}</span>
+                    </p>
                   ) : (
                     <p className="mt-2 text-sm font-medium text-red-600">{a.reason}</p>
                   )}

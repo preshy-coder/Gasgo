@@ -63,6 +63,7 @@ export const realApi: GasgoApi = {
   verifyOtp: (phone, code) => request('POST', '/auth/otp/verify/', { phone, code }),
   getMe: () => request('GET', '/me/'),
   updateMe: (data) => request('PATCH', '/me/', data),
+  registerVendor: (data) => request('POST', '/vendors/register/', data),
 
   listAddresses: async () => unwrap(await request('GET', '/addresses/')),
   createAddress: (data) => request('POST', '/addresses/', data),
@@ -85,4 +86,11 @@ export const realApi: GasgoApi = {
   dealerAccept: (id) => request('POST', `/dealer/orders/${id}/accept/`),
   dealerReject: (id, reason) => request('POST', `/dealer/orders/${id}/reject/`, { reason }),
   dealerSetStatus: (id, status) => request('POST', `/dealer/orders/${id}/status/`, { status }),
+
+  getMyShop: () => request('GET', '/dealer/shop/'),
+  setShopOpen: (is_open) => request('PATCH', '/dealer/shop/', { is_open }),
+  listMyStock: async () => unwrap(await request('GET', '/dealer/stock/')),
+  addStock: (item) => request('POST', '/dealer/stock/', item),
+  updateStock: (id, data) => request('PATCH', `/dealer/stock/${id}/`, data),
+  removeStock: (id) => request('DELETE', `/dealer/stock/${id}/`),
 }

@@ -4,6 +4,7 @@
 // Demo rules:
 //   - The OTP code is always 123456.
 //   - Phone 0700 000 001 logs in as a dealer (Gasgo Demo Dealer, Juja Town).
+//   - Each shop lists its own gas types, prices and stock (vendors manage them on the Stock screen).
 //   - Delivery addresses must be within Juja, Kiambu County (see src/lib/serviceArea.ts).
 //   - Any other phone logs in as a customer.
 //   - M-Pesa payments succeed ~4 seconds after the STK push,
@@ -12,6 +13,8 @@ import { useAuth } from '../store/auth'
 import type {
   Address,
   Dealer,
+  DealerStock,
+  StockItem,
   Order,
   OrderStatus,
   Product,
@@ -25,7 +28,7 @@ import { OUTSIDE_AREA_MESSAGE, isInServiceArea } from '../lib/serviceArea'
 export const MOCK_OTP = '123456'
 export const MOCK_DEALER_PHONE = '254700000001'
 const PAYMENT_DELAY_MS = 4000
-const KEY = 'gasgo-mock-db-v2' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v3' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -59,15 +62,25 @@ const PRODUCTS: Product[] = BRANDS.flatMap((b, i) => [
   { id: i * 4 + 4, brand: b.brand, size_kg: 13, type: 'new_cylinder' as const, price_kes: b.new13, image_url: null, is_active: true },
 ])
 
-const allStock = (qty: number) => PRODUCTS.map((p) => ({ product_id: p.id, quantity: qty }))
+/**
+ * Builds a shop's stock list: every size/type of the given brands, at the reference price plus
+ * `offset` KES. `tweak` lets a shop have a few items out of stock or running low.
+ */
+function stockFor(brands: string[], qty: number, offset = 0, opts: { refillOnly?: boolean; tweak?: Record<number, number> } = {}) {
+  return PRODUCTS.filter((p) => brands.includes(p.brand) && (!opts.refillOnly || p.type === 'refill')).map((p) => ({
+    product_id: p.id,
+    quantity: opts.tweak?.[p.id] ?? qty,
+    price_kes: p.price_kes + offset,
+  }))
+}
 
 // Demo dealers in Juja, Kiambu County (fictional names, approximate locations).
 const DEALERS: Dealer[] = [
-  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.1021, lng: 37.0139, address: 'Juja Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: allStock(12) },
-  { id: 2, name: 'JKUAT Gate Gas Point', phone: '254711000002', lat: -1.0951, lng: 37.0106, address: 'Near JKUAT Gate C, Juja', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: allStock(6).map((s) => (s.product_id % 4 === 0 ? { ...s, quantity: 0 } : s)) },
-  { id: 3, name: 'Highpoint Gas Centre', phone: '254722000003', lat: -1.1066, lng: 37.0207, address: 'Highpoint, Juja', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: allStock(9) },
-  { id: 4, name: 'Witeithie Gas Shop', phone: '254744000005', lat: -1.1161, lng: 37.0402, address: 'Witeithie, Juja', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 6, is_open: true, stock: allStock(5) },
-  { id: 5, name: 'Kalimoni Energies', phone: '254733000004', lat: -1.1236, lng: 37.0087, address: 'Kalimoni, Juja', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 6, is_open: false, stock: allStock(4) },
+  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.1021, lng: 37.0139, address: 'Juja Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
+  { id: 2, name: 'JKUAT Gate Gas Point', phone: '254711000002', lat: -1.0951, lng: 37.0106, address: 'Near JKUAT Gate C, Juja', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
+  { id: 3, name: 'Highpoint Gas Centre', phone: '254722000003', lat: -1.1066, lng: 37.0207, address: 'Highpoint, Juja', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
+  { id: 4, name: 'Witeithie Gas Shop', phone: '254744000005', lat: -1.1161, lng: 37.0402, address: 'Witeithie, Juja', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
+  { id: 5, name: 'Kalimoni Energies', phone: '254733000004', lat: -1.1236, lng: 37.0087, address: 'Kalimoni, Juja', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 6, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
 ]
 
 function seed(): MockDb {
@@ -171,11 +184,11 @@ function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { 
   for (const line of req.items) {
     const product = db.products.find((p) => p.id === line.product_id)
     if (!product) throw new ApiError('Product not found.', 404, 'not_found')
-    const stock = dealer.stock.find((s) => s.product_id === line.product_id)?.quantity ?? 0
-    if (stock < line.quantity) {
+    const listing = dealer.stock.find((s) => s.product_id === line.product_id)
+    if (!listing || listing.quantity < line.quantity) {
       throw new ApiError(`${dealer.name} doesn't have enough ${product.brand} ${product.size_kg}kg in stock.`, 400, 'out_of_stock')
     }
-    subtotal += product.price_kes * line.quantity
+    subtotal += listing.price_kes * line.quantity
   }
 
   let address: Address | null = null
@@ -209,6 +222,20 @@ const ALLOWED_DEALER_MOVES: Partial<Record<OrderStatus, OrderStatus[]>> = {
   out_for_delivery: ['delivered'],
   ready_for_pickup: ['collected'],
 }
+
+function myShop(db: MockDb): Dealer {
+  const user = currentUser(db)
+  const shop = db.dealers.find((d) => d.id === user.dealer_id)
+  if (user.role !== 'dealer' || !shop) throw new ApiError('Vendors only.', 403, 'forbidden')
+  return shop
+}
+
+function stockItem(db: MockDb, st: DealerStock): StockItem {
+  const product = db.products.find((p) => p.id === st.product_id)!
+  return { id: st.product_id, product: { ...product, price_kes: st.price_kes }, quantity: st.quantity, price_kes: st.price_kes }
+}
+
+const sameBrand = (a: string, b: string) => a.replace(/[\s-]/g, '').toLowerCase() === b.replace(/[\s-]/g, '').toLowerCase()
 
 export const mockApi: GasgoApi = {
   async requestOtp(phone) {
@@ -244,6 +271,33 @@ export const mockApi: GasgoApi = {
     return user
   },
 
+  async registerVendor(data) {
+    await wait(700)
+    const db = load()
+    const user = currentUser(db)
+    if (user.role === 'dealer') throw new ApiError('This account already has a shop.', 400, 'already_vendor')
+    if (data.shop_name.trim().length < 2) throw new ApiError('Enter your shop name.', 400, 'invalid')
+    if (!isInServiceArea(data)) throw new ApiError(OUTSIDE_AREA_MESSAGE, 400, 'outside_service_area')
+    const dealer: Dealer = {
+      id: db.nextId++,
+      name: data.shop_name.trim(),
+      phone: user.phone,
+      lat: data.lat,
+      lng: data.lng,
+      address: [data.address.trim(), data.landmark_notes.trim()].filter(Boolean).join(' · '),
+      opening_hours: data.opening_hours,
+      delivery_radius_km: data.delivery_radius_km,
+      is_open: true,
+      // New shops start with no gas listed; the vendor adds their gas types on the Stock screen.
+      stock: [],
+    }
+    db.dealers.push(dealer)
+    user.role = 'dealer'
+    user.dealer_id = dealer.id
+    save(db)
+    return { user: { ...user }, dealer }
+  },
+
   async listAddresses() {
     await wait(200)
     const db = load()
@@ -273,7 +327,17 @@ export const mockApi: GasgoApi = {
 
   async listProducts() {
     await wait(200)
-    return load().products.filter((p) => p.is_active)
+    const db = load()
+    // Only gas types that at least one open shop has in stock, priced "from" the cheapest shop.
+    return db.products
+      .filter((p) => p.is_active)
+      .map((p) => {
+        const prices = db.dealers
+          .filter((d) => d.is_open)
+          .flatMap((d) => d.stock.filter((st) => st.product_id === p.id && st.quantity > 0).map((st) => st.price_kes))
+        return prices.length ? { ...p, price_kes: Math.min(...prices) } : null
+      })
+      .filter((p): p is Product => p !== null)
   },
 
   async listDealers({ lat, lng }) {
@@ -328,7 +392,8 @@ export const mockApi: GasgoApi = {
       status: 'placed',
       items: req.items.map((line) => {
         const product = db.products.find((p) => p.id === line.product_id)!
-        return { product, quantity: line.quantity, unit_price_kes: product.price_kes }
+        const price = q.dealer.stock.find((st) => st.product_id === line.product_id)!.price_kes
+        return { product: { ...product, price_kes: price }, quantity: line.quantity, unit_price_kes: price }
       }),
       dealer: q.dealer,
       address: q.address,
@@ -412,6 +477,75 @@ export const mockApi: GasgoApi = {
     setStatus(order, 'rejected_by_dealer')
     save(db)
     return publicOrder(order)
+  },
+
+  async getMyShop() {
+    await wait(150)
+    return structuredClone(myShop(load()))
+  },
+
+  async setShopOpen(isOpen) {
+    await wait()
+    const db = load()
+    const shop = myShop(db)
+    shop.is_open = isOpen
+    save(db)
+    return structuredClone(shop)
+  },
+
+  async listMyStock() {
+    await wait(200)
+    const db = load()
+    return myShop(db).stock.map((st) => stockItem(db, st))
+  },
+
+  async addStock(item) {
+    await wait()
+    const db = load()
+    const shop = myShop(db)
+    const brand = item.brand.trim()
+    if (brand.length < 2) throw new ApiError('Enter the gas brand, e.g. K-Gas.', 400, 'invalid')
+    if (!(item.size_kg > 0)) throw new ApiError('Choose the cylinder size.', 400, 'invalid')
+    if (!(item.price_kes > 0)) throw new ApiError('Enter the price in KES.', 400, 'invalid')
+    if (item.quantity < 0) throw new ApiError('Quantity cannot be negative.', 400, 'invalid')
+    // Re-use the catalogue entry if this brand/size/type already exists (e.g. "Kgas" = "K-Gas").
+    let product = db.products.find((p) => sameBrand(p.brand, brand) && p.size_kg === item.size_kg && p.type === item.type)
+    if (!product) {
+      product = { id: db.nextId++, brand, size_kg: item.size_kg, type: item.type, price_kes: item.price_kes, image_url: null, is_active: true }
+      db.products.push(product)
+    }
+    if (shop.stock.some((st) => st.product_id === product.id)) {
+      throw new ApiError(`${product.brand} ${product.size_kg}kg ${item.type === 'refill' ? 'refill' : 'new cylinder'} is already in your stock. Update it below instead.`, 400, 'duplicate')
+    }
+    const st = { product_id: product.id, quantity: Math.floor(item.quantity), price_kes: Math.round(item.price_kes) }
+    shop.stock.push(st)
+    save(db)
+    return stockItem(db, st)
+  },
+
+  async updateStock(id, data) {
+    await wait(200)
+    const db = load()
+    const st = myShop(db).stock.find((x) => x.product_id === id)
+    if (!st) throw new ApiError('Gas type not found.', 404, 'not_found')
+    if (data.quantity !== undefined) {
+      if (data.quantity < 0) throw new ApiError('Quantity cannot be negative.', 400, 'invalid')
+      st.quantity = Math.floor(data.quantity)
+    }
+    if (data.price_kes !== undefined) {
+      if (!(data.price_kes > 0)) throw new ApiError('Enter a price above 0.', 400, 'invalid')
+      st.price_kes = Math.round(data.price_kes)
+    }
+    save(db)
+    return stockItem(db, st)
+  },
+
+  async removeStock(id) {
+    await wait()
+    const db = load()
+    const shop = myShop(db)
+    shop.stock = shop.stock.filter((x) => x.product_id !== id)
+    save(db)
   },
 
   async dealerSetStatus(id, status) {

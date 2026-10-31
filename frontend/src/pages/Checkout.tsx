@@ -62,7 +62,9 @@ export default function Checkout() {
                     </p>
                     <p className="text-xs text-slate-500">{productTypeLabel(p)}</p>
                   </div>
-                  <span className="tabular-nums">{formatKes(p.price_kes * i.quantity)}</span>
+                  <span className="tabular-nums">
+                    {formatKes((dealer?.stock.find((st) => st.product_id === p.id)?.price_kes ?? p.price_kes) * i.quantity)}
+                  </span>
                 </li>
               )
             })}

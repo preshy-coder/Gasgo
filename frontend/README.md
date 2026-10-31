@@ -81,6 +81,15 @@ Every request goes through `src/api/real.ts`. The endpoints and field names foll
 What the frontend expects from the backend, beyond the agreement doc:
 
 - `POST /auth/otp/verify/` returns `{ access, refresh, user, is_new_user }`.
+- **Vendor sign-up:** `POST /vendors/register/` (logged-in user) with `{ shop_name, address, landmark_notes, lat, lng, opening_hours, delivery_radius_km }`. It creates the dealer (shop), switches the user's `role` to `dealer`, and returns `{ user, dealer }`. Reject pins outside Juja. Decide whether new shops go live immediately or wait for admin approval (e.g. after checking their licence); the frontend currently assumes they're live.
+- **Vendor stock (vendors enter their own gas types):**
+  - `GET /dealer/shop/` → the vendor's own shop; `PATCH /dealer/shop/` with `{ is_open }` opens/closes it.
+  - `GET /dealer/stock/` → `[{ id, product: { id, brand, size_kg, type, ... }, quantity, price_kes }]`.
+  - `POST /dealer/stock/` with `{ brand, size_kg, type, price_kes, quantity }`. The brand is free text typed by the vendor; match it to an existing catalogue entry ignoring case, spaces and dashes ("kgas" = "K-Gas"), or create a new one. Refuse duplicates in the same shop.
+  - `PATCH /dealer/stock/{id}/` with `{ quantity }` and/or `{ price_kes }`; `DELETE /dealer/stock/{id}/`.
+  - Each dealer's `stock` entries now include the shop's own `price_kes`. Quotes and orders must use **that shop's** price.
+  - `GET /products/` should return only gas types that at least one **open** shop has in stock, with `price_kes` = the lowest of those shop prices (shown to customers as "from KES …").
+  - Accepting an order should reduce the shop's stock.
 - `GET /orders/{id}/` also works for the dealer who owns the order (the dealer screens use it).
 - Orders include a `customer: { name, phone }` field for the dealer's view.
 - Dealer endpoints: `GET /dealer/orders/`, `POST /dealer/orders/{id}/accept/`, `POST /dealer/orders/{id}/reject/` (`{ reason }`), `POST /dealer/orders/{id}/status/` (`{ status }`).
@@ -112,12 +121,33 @@ src/
 public/         app icons (favicon.svg is the logo source)
 ```
 
+## Joining: clients and vendors
+
+The landing page offers two ways in:
+
+- **I need gas → Join as a client** (`/login?as=client`): phone → SMS code → name → ordering.
+- **I sell gas → Join as a vendor** (`/login?as=vendor`): phone → SMS code → owner's name → **shop details** (shop name, exact pin location, address and landmark, opening hours, delivery distance) → the dealer screens.
+- **Log in** (`/login`): existing accounts. Customers go to ordering, vendors to their dealer screens.
+
+An existing vendor who taps "I sell gas" goes straight to their dealer screens. A customer who taps it can register a shop on the same phone number.
+
+## Vendor stock
+
+Vendors manage their own gas list on **Stock** (`/dealer/stock`, next to **Orders**):
+
+- **Add a gas type:** brand (typed by the vendor, with suggestions from brands other shops use), cylinder size (3/6/13/22/50 kg or any other), refill or new cylinder, price and quantity in stock.
+- **Stock levels:** each item shows *In stock*, *Low* (3 or fewer) or *Out of stock*, with +/− buttons. The price can be edited in place, and items can be removed.
+- **Open / closed** switch for the shop.
+- New shops start with no gas listed and land on this screen right after registering.
+
+Customers only see brands and sizes that some open shop has in stock, priced "from" the cheapest shop; each shop's own total shows in the dealer list and at checkout.
+
 ## Screens
 
 | Route | Screen |
 | --- | --- |
 | `/welcome` | Intro |
-| `/login` | Phone → SMS code → name (new users) |
+| `/login` | Phone → SMS code → name (new users) → shop details (vendors) |
 | `/` | Choose delivery/pickup and gas |
 | `/location` | Saved addresses, drop a new pin |
 | `/dealers` | Dealers sorted by distance, with stock and opening hours |
@@ -125,7 +155,8 @@ public/         app icons (favicon.svg is the logo source)
 | `/orders/:id/pay` | M-Pesa STK Push: waiting, success, failure, timeout |
 | `/orders/:id` | Live tracking (refreshes every 3 s) |
 | `/orders`, `/help`, `/profile` | History, FAQ + gas safety, account |
-| `/dealer`, `/dealer/orders/:id` | Dealer: new / in progress / completed, accept, reject, update status |
+| `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, update status |
+| `/dealer/stock` | Vendor stock: gas types, prices, stock levels, open/closed |
 
 ## Before launch
 

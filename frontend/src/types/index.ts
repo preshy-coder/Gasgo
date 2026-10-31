@@ -24,11 +24,16 @@ export interface VerifyOtpResponse extends AuthTokens {
 
 export type ProductType = 'refill' | 'new_cylinder'
 
+/**
+ * A gas type in the catalogue (brand + size + refill/new). Vendors create these when they add
+ * stock; customers only see types that at least one shop lists.
+ */
 export interface Product {
   id: number
   brand: string
   size_kg: number
   type: ProductType
+  /** Lowest price across shops that have it in stock ("from" price). The shop's own price is in DealerStock. */
   price_kes: number
   image_url: string | null
   is_active: boolean
@@ -36,6 +41,25 @@ export interface Product {
 
 export interface DealerStock {
   product_id: number
+  quantity: number
+  /** This shop's price for this gas type */
+  price_kes: number
+}
+
+/** One line of a vendor's own stock list. */
+export interface StockItem {
+  id: number
+  product: Product
+  quantity: number
+  price_kes: number
+}
+
+/** What a vendor enters to add a gas type to their shop. The brand is typed by the vendor. */
+export interface NewStockItem {
+  brand: string
+  size_kg: number
+  type: ProductType
+  price_kes: number
   quantity: number
 }
 
@@ -51,6 +75,22 @@ export interface Dealer {
   is_open: boolean
   stock: DealerStock[]
   distance_km?: number
+}
+
+/** What a vendor (gas shop) fills in when joining Gasgo. */
+export interface VendorSignup {
+  shop_name: string
+  address: string // written address, e.g. "Highpoint, Juja, next to the stage"
+  landmark_notes: string
+  lat: number // exact pin location
+  lng: number
+  opening_hours: string
+  delivery_radius_km: number
+}
+
+export interface VendorSignupResponse {
+  user: User // role is now "dealer", with dealer_id set
+  dealer: Dealer
 }
 
 export interface Address {

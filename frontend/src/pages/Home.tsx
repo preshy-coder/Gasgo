@@ -125,6 +125,16 @@ export default function Home() {
 
           {products.isPending && <GlassSpinner />}
           {products.isError && <ErrorBox message={errorMessage(products.error)} onRetry={() => products.refetch()} />}
+          {products.isSuccess && products.data.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-white/30 bg-white/5 p-4 text-center text-sm text-white/65 backdrop-blur-md">
+              No shops have gas in stock right now. Please check again soon.
+            </p>
+          )}
+          {products.isSuccess && products.data.length > 0 && brand && visible.length === 0 && (
+            <p className="rounded-2xl border border-dashed border-white/30 bg-white/5 p-4 text-center text-sm text-white/65 backdrop-blur-md">
+              No shop has {brand} {purchaseType === 'refill' ? 'refills' : 'new cylinders'} in stock right now. Try another brand or type.
+            </p>
+          )}
           {products.isSuccess && !brand && (
             <p className="rounded-2xl border border-dashed border-white/30 bg-white/5 p-4 text-center text-sm text-white/65 backdrop-blur-md">
               Choose your gas brand above to see sizes and prices.
@@ -142,7 +152,7 @@ export default function Home() {
                 </div>
                 <div className="flex-1">
                   <p className="font-semibold">{productName(p)}</p>
-                  <p className="text-sm text-white/70">{formatKes(p.price_kes)}</p>
+                  <p className="text-sm text-white/70">from {formatKes(p.price_kes)}</p>
                 </div>
                 <GlassStepper value={qty(p.id)} onChange={(v) => setQuantity(p.id, v)} max={5} />
               </li>
@@ -161,7 +171,7 @@ export default function Home() {
           <Button full onClick={goNext} className="justify-between rounded-2xl shadow-xl shadow-black/50">
             <span className="rounded-lg bg-white/20 px-2 py-0.5 text-sm">{count}</span>
             <span>{orderType === 'delivery' && !address ? 'Set location' : 'Choose dealer'}</span>
-            <span>{formatKes(subtotal)}</span>
+            <span>from {formatKes(subtotal)}</span>
           </Button>
         </div>
       )}

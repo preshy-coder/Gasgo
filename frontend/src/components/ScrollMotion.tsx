@@ -54,11 +54,13 @@ export function ScrollMotion() {
       { threshold: [0, 0.15, 0.5], rootMargin: '-56px 0px -16px 0px' },
     )
 
+    // Tracked per run of this effect (React may start it twice in development).
+    const tracked = new WeakSet<Element>()
     const track = (el: Element) => {
-      if (!(el instanceof HTMLElement) || el.dataset.motionTracked) return
+      if (!(el instanceof HTMLElement) || tracked.has(el)) return
       if (el.closest('[inert]')) return // ignore the page copies used by page transitions
-      el.dataset.motionTracked = '1'
-      el.dataset.motion = 'below'
+      tracked.add(el)
+      if (!el.dataset.seen) el.dataset.motion = 'below'
       io.observe(el)
     }
     const scan = (root: ParentNode) => {

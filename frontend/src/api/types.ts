@@ -3,6 +3,8 @@ import type {
   CreateOrderRequest,
   Dealer,
   NewAddress,
+  NewStockItem,
+  StockItem,
   Order,
   OrderStatus,
   PayResponse,
@@ -10,6 +12,8 @@ import type {
   Quote,
   QuoteRequest,
   User,
+  VendorSignup,
+  VendorSignupResponse,
   VerifyOtpResponse,
 } from '../types'
 
@@ -24,6 +28,8 @@ export interface GasgoApi {
   verifyOtp(phone: string, code: string): Promise<VerifyOtpResponse>
   getMe(): Promise<User>
   updateMe(data: Partial<Pick<User, 'name'>>): Promise<User>
+  /** Turns the logged-in user into a vendor and creates their shop. */
+  registerVendor(data: VendorSignup): Promise<VendorSignupResponse>
 
   // Addresses
   listAddresses(): Promise<Address[]>
@@ -47,6 +53,14 @@ export interface GasgoApi {
   dealerAccept(id: number): Promise<Order>
   dealerReject(id: number, reason: string): Promise<Order>
   dealerSetStatus(id: number, status: OrderStatus): Promise<Order>
+
+  // Vendor shop and stock (gas types are entered by the vendor)
+  getMyShop(): Promise<Dealer>
+  setShopOpen(isOpen: boolean): Promise<Dealer>
+  listMyStock(): Promise<StockItem[]>
+  addStock(item: NewStockItem): Promise<StockItem>
+  updateStock(id: number, data: Partial<Pick<StockItem, 'quantity' | 'price_kes'>>): Promise<StockItem>
+  removeStock(id: number): Promise<void>
 }
 
 export class ApiError extends Error {

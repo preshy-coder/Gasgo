@@ -1,7 +1,7 @@
 // TanStack Query hooks: caching, loading states and refetching for every API call.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
-import type { NewAddress, Order, OrderStatus, QuoteRequest } from '../types'
+import type { NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem } from '../types'
 import { isActiveOrder } from '../lib/format'
 
 export const keys = {
@@ -13,6 +13,8 @@ export const keys = {
   orders: ['orders'] as const,
   order: (id: number) => ['order', id] as const,
   dealerOrders: ['dealer-orders'] as const,
+  myShop: ['my-shop'] as const,
+  myStock: ['my-stock'] as const,
 }
 
 export const useProducts = () => useQuery({ queryKey: keys.products, queryFn: api.listProducts, staleTime: 5 * 60_000 })
@@ -97,3 +99,47 @@ export const useDealerReject = () =>
   useOrderMutation(({ id, reason }: { id: number; reason: string }) => api.dealerReject(id, reason))
 export const useDealerSetStatus = () =>
   useOrderMutation(({ id, status }: { id: number; status: OrderStatus }) => api.dealerSetStatus(id, status))
+
+// ---------- Vendor shop & stock ----------
+
+export const useMyShop = () => useQuery({ queryKey: keys.myShop, queryFn: api.getMyShop })
+export const useMyStock = () => useQuery({ queryKey: keys.myStock, queryFn: api.listMyStock })
+
+/** After any stock change, refresh the vendor's list and everything customers see. */
+function useStockInvalidate() {
+  const qc = useQueryClient()
+  return () => {
+    qc.invalidateQueries({ queryKey: keys.myStock })
+    qc.invalidateQueries({ queryKey: keys.myShop })
+    qc.invalidateQueries({ queryKey: keys.products })
+    qc.invalidateQueries({ queryKey: ['dealers'] })
+  }
+}
+
+export function useSetShopOpen() {
+  const invalidate = useStockInvalidate()
+  return useMutation({ mutationFn: (isOpen: boolean) => api.setShopOpen(isOpen), onSuccess: invalidate })
+}
+
+export function useAddStock() {
+  const invalidate = useStockInvalidate()
+  return useMutation({ mutationFn: (item: NewStockItem) => api.addStock(item), onSuccess: invalidate })
+}
+
+export function useUpdateStock() {
+  const qc = useQueryClient()
+  const invalidate = useStockInvalidate()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: number } & Partial<Pick<StockItem, 'quantity' | 'price_kes'>>) => api.updateStock(id, data),
+    // Update the list straight away so +/- feels instant; the server copy replaces it after.
+    onMutate: ({ id, ...data }) => {
+      qc.setQueryData<StockItem[]>(keys.myStock, (old) => old?.map((it) => (it.id === id ? { ...it, ...data } : it)))
+    },
+    onSettled: invalidate,
+  })
+}
+
+export function useRemoveStock() {
+  const invalidate = useStockInvalidate()
+  return useMutation({ mutationFn: (id: number) => api.removeStock(id), onSuccess: invalidate })
+}
