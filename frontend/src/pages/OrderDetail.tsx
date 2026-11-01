@@ -1,11 +1,11 @@
 // Order tracking. useOrder polls every 3 s while the order is still moving.
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { MapPin, Phone, RotateCcw, Store } from 'lucide-react'
+import { CheckCircle2, Clock3, MapPin, Phone, RotateCcw, Store } from 'lucide-react'
 import { errorMessage } from '../api'
 import { StatusTimeline } from '../components/StatusTimeline'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../components/ui'
 import { useCancelOrder, useOrder } from '../hooks/queries'
-import { formatDateTime, formatKes, productName } from '../lib/format'
+import { awaitingRefund, displayPhone, formatDateTime, formatKes, productName } from '../lib/format'
 import { useCart } from '../store/cart'
 
 export default function OrderDetail() {
@@ -26,7 +26,9 @@ export default function OrderDetail() {
   const o = order.data
   const needsPayment = o.status === 'placed' || o.status === 'payment_failed'
   const canCancel = ['placed', 'paid', 'payment_failed'].includes(o.status)
-  const finished = ['delivered', 'collected', 'cancelled', 'rejected_by_dealer'].includes(o.status)
+  const finished = ['delivered', 'collected', 'cancelled', 'rejected_by_dealer', 'refunded'].includes(o.status)
+  const timedOut = o.cancellation_reason === 'dealer_timeout'
+  const refundPending = awaitingRefund(o)
 
   const reorder = () => {
     cart.clear()
@@ -47,11 +49,26 @@ export default function OrderDetail() {
           <StatusTimeline order={o} />
         </Card>
 
-        {o.status === 'rejected_by_dealer' && (
-          <div className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
-            The dealer couldn't fulfil this order. Your refund of {formatKes(o.total_kes)} will be sent to your M-Pesa. Contact support if it hasn't
-            arrived within 24 hours.
-          </div>
+        {/* Dealer didn't accept in time: the system cancelled the order */}
+        {timedOut && (o.status === 'cancelled' || o.status === 'refunded') && (
+          <Notice tone="warn" icon={<Clock3 className="h-5 w-5" />} title="The dealer didn’t respond in time">
+            {o.dealer.name} didn’t accept your order in time, so we cancelled it for you.
+            {o.status === 'cancelled' && ` Your ${formatKes(o.total_kes)} refund is on its way to your M-Pesa.`} You can order again from another dealer.
+          </Notice>
+        )}
+        {/* Rejected or cancelled after payment, refund not sent yet */}
+        {refundPending && !timedOut && (
+          <Notice tone="warn" icon={<Clock3 className="h-5 w-5" />} title="Refund on its way">
+            {o.status === 'rejected_by_dealer' ? "The dealer couldn't fulfil this order. " : 'Your order was cancelled. '}
+            Your refund of {formatKes(o.total_kes)} will be sent to your M-Pesa. Contact support if it hasn't arrived within 24 hours.
+          </Notice>
+        )}
+        {/* Refund done */}
+        {o.status === 'refunded' && (
+          <Notice tone="success" icon={<CheckCircle2 className="h-5 w-5" />} title="Refund sent to your M-Pesa">
+            {formatKes(o.total_kes)} has been returned to your M-Pesa
+            {o.customer?.phone ? ` (${displayPhone(o.customer.phone)})` : ''}. Check your M-Pesa messages for the confirmation.
+          </Notice>
         )}
         {o.status === 'ready_for_pickup' && (
           <div className="rounded-xl bg-green-50 p-3 text-sm text-green-900 ring-1 ring-green-200">
@@ -148,6 +165,19 @@ export default function OrderDetail() {
           </div>
         </BottomBar>
       )}
+    </div>
+  )
+}
+
+function Notice({ tone, icon, title, children }: { tone: 'warn' | 'success'; icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  const styles = tone === 'success' ? 'bg-green-50 text-green-900 ring-green-200 [&_svg]:text-green-600' : 'bg-amber-50 text-amber-900 ring-amber-200 [&_svg]:text-amber-600'
+  return (
+    <div role="status" className={`flex gap-3 rounded-xl p-3 text-sm ring-1 ${styles}`}>
+      <span className="mt-0.5 shrink-0">{icon}</span>
+      <div>
+        <p className="font-semibold">{title}</p>
+        <p className="mt-0.5">{children}</p>
+      </div>
     </div>
   )
 }

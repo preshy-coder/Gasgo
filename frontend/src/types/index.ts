@@ -117,6 +117,15 @@ export type OrderStatus =
   | 'payment_failed'
   | 'rejected_by_dealer'
   | 'cancelled'
+  /** Money returned to the customer's M-Pesa (after a paid order was rejected or cancelled). */
+  | 'refunded'
+
+/**
+ * Why an order was cancelled (null if it wasn't).
+ * - customer: the customer cancelled it.
+ * - dealer_timeout: the dealer didn't accept the paid order in time, so the system cancelled it.
+ */
+export type CancellationReason = 'customer' | 'dealer_timeout'
 
 export interface OrderItem {
   product: Product
@@ -142,6 +151,7 @@ export interface Order {
   delivery_fee_kes: number
   total_kes: number
   mpesa_receipt: string | null
+  cancellation_reason: CancellationReason | null
   status_history: StatusChange[]
   created_at: string
 }

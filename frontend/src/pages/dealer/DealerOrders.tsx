@@ -15,7 +15,7 @@ type Tab = 'new' | 'active' | 'done'
 const TAB_FILTER: Record<Tab, (o: Order) => boolean> = {
   new: (o) => o.status === 'paid',
   active: (o) => ['accepted', 'out_for_delivery', 'ready_for_pickup'].includes(o.status),
-  done: (o) => ['delivered', 'collected', 'rejected_by_dealer', 'cancelled'].includes(o.status),
+  done: (o) => ['delivered', 'collected', 'rejected_by_dealer', 'cancelled', 'refunded'].includes(o.status),
 }
 
 export default function DealerOrders() {

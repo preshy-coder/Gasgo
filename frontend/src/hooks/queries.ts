@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
 import type { NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem } from '../types'
-import { isActiveOrder } from '../lib/format'
+import { awaitingRefund, isActiveOrder } from '../lib/format'
 
 export const keys = {
   me: ['me'] as const,
@@ -62,9 +62,10 @@ export const useOrder = (id: number) =>
     queryKey: keys.order(id),
     queryFn: () => api.getOrder(id),
     refetchInterval: (q) => {
-      const s = q.state.data?.status
-      if (!s) return false
-      return isActiveOrder(s) ? 3000 : false
+      const o = q.state.data
+      if (!o) return false
+      if (isActiveOrder(o.status)) return 3000
+      return awaitingRefund(o) ? 10_000 : false // keep checking until the refund shows up
     },
   })
 

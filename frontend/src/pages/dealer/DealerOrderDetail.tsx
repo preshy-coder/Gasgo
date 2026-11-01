@@ -91,8 +91,23 @@ export default function DealerOrderDetail() {
         </Card>
 
         <Card>
-          <StatusTimeline order={o} />
+          <StatusTimeline order={o} forDealer />
         </Card>
+
+        {o.cancellation_reason === 'dealer_timeout' && (o.status === 'cancelled' || o.status === 'refunded') && (
+          <div role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+            <p className="font-semibold">Cancelled: not accepted in time</p>
+            <p className="mt-0.5">
+              This order wasn’t accepted in time, so it was cancelled automatically and the customer {o.status === 'refunded' ? 'has been refunded' : 'is being refunded'}. Accept
+              new orders quickly to keep them.
+            </p>
+          </div>
+        )}
+        {o.status === 'refunded' && o.cancellation_reason !== 'dealer_timeout' && (
+          <div role="status" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700 ring-1 ring-slate-200">
+            The customer has been refunded {formatKes(o.total_kes)} to their M-Pesa.
+          </div>
+        )}
 
         {rejecting && (
           <Card>

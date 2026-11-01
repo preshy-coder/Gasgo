@@ -8,7 +8,7 @@ import { CheckCircle2, Smartphone, XCircle } from 'lucide-react'
 import { errorMessage, USE_MOCK } from '../api'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner } from '../components/ui'
 import { useCancelOrder, useOrder, usePayOrder } from '../hooks/queries'
-import { displayPhone, formatKes, normalizePhone } from '../lib/format'
+import { PAID_STATUSES, displayPhone, formatKes, normalizePhone } from '../lib/format'
 import { useAuth } from '../store/auth'
 
 const TIMEOUT_S = 60
@@ -37,7 +37,9 @@ export default function Payment() {
   }, [waitingSince])
 
   // Payment confirmed → go to tracking after a short success moment.
-  const paid = status !== undefined && !['placed', 'payment_failed', 'cancelled'].includes(status)
+  // Only orders that are paid and going ahead count. Rejected, cancelled or refunded orders were paid
+  // once but must not show "Payment received" here.
+  const paid = status !== undefined && PAID_STATUSES.includes(status)
   useEffect(() => {
     if (!paid) return
     const t = setTimeout(() => navigate(`/orders/${id}`, { replace: true }), 1800)
@@ -46,7 +48,8 @@ export default function Payment() {
 
   if (order.isPending) return <Spinner />
   if (order.isError) return <ErrorBox message={errorMessage(order.error)} onRetry={() => order.refetch()} />
-  if (status === 'cancelled') return <Navigate to={`/orders/${id}`} replace />
+  // Nothing to pay for any more: show the order (and its refund message) instead.
+  if (status === 'cancelled' || status === 'rejected_by_dealer' || status === 'refunded') return <Navigate to={`/orders/${id}`} replace />
 
   const o = order.data
   const failed = status === 'payment_failed'

@@ -81,6 +81,7 @@ Every request goes through `src/api/real.ts`. The endpoints and field names foll
 What the frontend expects from the backend, beyond the agreement doc:
 
 - `POST /auth/otp/verify/` returns `{ access, refresh, user, is_new_user }`.
+- **Refunds (pay-first):** when a paid order is `rejected_by_dealer` or `cancelled`, refund it to M-Pesa and then set status `refunded` (keep the earlier status in `status_history`). Orders also carry `cancellation_reason`: `"customer"`, `"dealer_timeout"` (paid order not accepted in time, cancelled by the backend) or `null`. The timeout length is the backend's choice; the demo data uses 3 minutes.
 - **Vendor sign-up:** `POST /vendors/register/` (logged-in user) with `{ shop_name, address, landmark_notes, lat, lng, opening_hours, delivery_radius_km }`. It creates the dealer (shop), switches the user's `role` to `dealer`, and returns `{ user, dealer }`. Reject pins outside Juja. Decide whether new shops go live immediately or wait for admin approval (e.g. after checking their licence); the frontend currently assumes they're live.
 - **Vendor stock (vendors enter their own gas types):**
   - `GET /dealer/shop/` → the vendor's own shop; `PATCH /dealer/shop/` with `{ is_open }` opens/closes it.

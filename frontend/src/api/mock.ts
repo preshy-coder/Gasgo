@@ -7,6 +7,8 @@
 //   - Each shop lists its own gas types, prices and stock (vendors manage them on the Stock screen).
 //   - Delivery addresses must be within Juja, Kiambu County (see src/lib/serviceArea.ts).
 //   - Any other phone logs in as a customer.
+//   - Paid orders not accepted within 3 minutes are cancelled (dealer timeout); refunds for
+//     rejected/cancelled paid orders arrive ~8 seconds later (status "refunded").
 //   - M-Pesa payments succeed ~4 seconds after the STK push,
 //     except numbers ending in 0000, which fail (to test the failure screen).
 import { useAuth } from '../store/auth'
@@ -28,12 +30,17 @@ import { OUTSIDE_AREA_MESSAGE, isInServiceArea } from '../lib/serviceArea'
 export const MOCK_OTP = '123456'
 export const MOCK_DEALER_PHONE = '254700000001'
 const PAYMENT_DELAY_MS = 4000
+/** Demo: a paid order the dealer hasn't accepted after this long is cancelled automatically. */
+const DEALER_TIMEOUT_MS = 3 * 60_000
+/** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
+const REFUND_DELAY_MS = 8000
 const KEY = 'gasgo-mock-db-v3' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
   payment_started_at: number | null
   payment_phone: string | null
+  refund_due_at?: number | null
 }
 
 interface MockDb {
@@ -150,10 +157,29 @@ function setStatus(order: MockOrder, status: OrderStatus) {
   order.status_history.push({ status, at: now() })
 }
 
-/** Resolves pending M-Pesa payments lazily (as if Safaricom's callback had arrived). */
+/**
+ * Moves orders along on their own, lazily, as the backend would:
+ * - pending M-Pesa payments resolve (as if Safaricom's callback had arrived);
+ * - paid orders the dealer hasn't accepted in time are cancelled (reason "dealer_timeout");
+ * - refunds for rejected/cancelled paid orders arrive.
+ */
 function settlePayments(db: MockDb) {
   let changed = false
   for (const o of db.orders) {
+    if (o.status === 'paid') {
+      const paidAt = Date.parse([...o.status_history].reverse().find((h) => h.status === 'paid')?.at ?? '')
+      if (Date.now() - paidAt > DEALER_TIMEOUT_MS) {
+        setStatus(o, 'cancelled')
+        o.cancellation_reason = 'dealer_timeout'
+        o.refund_due_at = Date.now() + REFUND_DELAY_MS
+        changed = true
+      }
+    }
+    if ((o.status === 'rejected_by_dealer' || o.status === 'cancelled') && o.refund_due_at && Date.now() > o.refund_due_at) {
+      setStatus(o, 'refunded')
+      o.refund_due_at = null
+      changed = true
+    }
     if (o.status === 'placed' && o.payment_started_at && Date.now() - o.payment_started_at > PAYMENT_DELAY_MS) {
       if (o.payment_phone?.endsWith('0000')) {
         setStatus(o, 'payment_failed')
@@ -170,8 +196,8 @@ function settlePayments(db: MockDb) {
 
 function publicOrder(o: MockOrder): Order {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { customer_id, payment_started_at, payment_phone, ...rest } = o
-  return structuredClone(rest)
+  const { customer_id, payment_started_at, payment_phone, refund_due_at, ...rest } = o
+  return structuredClone({ ...rest, cancellation_reason: rest.cancellation_reason ?? null })
 }
 
 function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { dealer: Dealer; address: Address | null } {
@@ -402,6 +428,8 @@ export const mockApi: GasgoApi = {
       delivery_fee_kes: q.delivery_fee_kes,
       total_kes: q.total_kes,
       mpesa_receipt: null,
+      cancellation_reason: null,
+      refund_due_at: null,
       status_history: [{ status: 'placed', at: now() }],
       created_at: now(),
       customer_id: user.id,
@@ -436,8 +464,11 @@ export const mockApi: GasgoApi = {
     if (!['placed', 'paid', 'payment_failed'].includes(order.status)) {
       throw new ApiError('This order can no longer be cancelled.', 400, 'cannot_cancel')
     }
+    const wasPaid = order.status === 'paid'
     setStatus(order, 'cancelled')
+    order.cancellation_reason = 'customer'
     order.payment_started_at = null
+    if (wasPaid) order.refund_due_at = Date.now() + REFUND_DELAY_MS // pay-first: refund the M-Pesa payment
     save(db)
     return publicOrder(order)
   },
@@ -475,6 +506,7 @@ export const mockApi: GasgoApi = {
     const order = dealerOrder(db, id)
     if (order.status !== 'paid') throw new ApiError('Only paid orders can be rejected.', 400, 'invalid_status')
     setStatus(order, 'rejected_by_dealer')
+    order.refund_due_at = Date.now() + REFUND_DELAY_MS
     save(db)
     return publicOrder(order)
   },

@@ -44,6 +44,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   payment_failed: 'Payment failed',
   rejected_by_dealer: 'Rejected by dealer',
   cancelled: 'Cancelled',
+  refunded: 'Refunded',
 }
 
 export type StatusTone = 'neutral' | 'progress' | 'success' | 'danger'
@@ -51,12 +52,20 @@ export type StatusTone = 'neutral' | 'progress' | 'success' | 'danger'
 export function statusTone(s: OrderStatus): StatusTone {
   if (s === 'delivered' || s === 'collected') return 'success'
   if (s === 'payment_failed' || s === 'rejected_by_dealer' || s === 'cancelled') return 'danger'
-  if (s === 'placed') return 'neutral'
+  if (s === 'placed' || s === 'refunded') return 'neutral'
   return 'progress'
 }
 
 export function isActiveOrder(s: OrderStatus): boolean {
   return statusTone(s) === 'progress' || s === 'placed'
+}
+
+/** Statuses where the customer's M-Pesa payment has gone through and the order is going ahead. */
+export const PAID_STATUSES: OrderStatus[] = ['paid', 'accepted', 'out_for_delivery', 'ready_for_pickup', 'delivered', 'collected']
+
+/** A paid order that was rejected or cancelled and whose refund hasn't been sent yet. */
+export function awaitingRefund(o: { status: OrderStatus; mpesa_receipt: string | null }): boolean {
+  return (o.status === 'rejected_by_dealer' || o.status === 'cancelled') && !!o.mpesa_receipt
 }
 
 export function formatDateTime(iso: string): string {

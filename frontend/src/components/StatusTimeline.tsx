@@ -1,4 +1,4 @@
-import { Check, X } from 'lucide-react'
+import { Check, Undo2, X } from 'lucide-react'
 import type { Order, OrderStatus } from '../types'
 import { STATUS_LABEL, formatTime } from '../lib/format'
 
@@ -14,12 +14,15 @@ const STEP_HINT: Partial<Record<OrderStatus, string>> = {
   ready_for_pickup: 'Go to the dealer to collect',
 }
 
-const FAILED: OrderStatus[] = ['payment_failed', 'rejected_by_dealer', 'cancelled']
+const FAILED: OrderStatus[] = ['payment_failed', 'rejected_by_dealer', 'cancelled', 'refunded']
+const STOPPED: OrderStatus[] = ['payment_failed', 'rejected_by_dealer', 'cancelled']
 
 /** Vertical progress tracker: placed → paid → accepted → out for delivery / ready → delivered / collected. */
-export function StatusTimeline({ order }: { order: Order }) {
+export function StatusTimeline({ order, forDealer }: { order: Order; forDealer?: boolean }) {
   const steps = order.type === 'delivery' ? DELIVERY_STEPS : PICKUP_STEPS
   const failed = FAILED.includes(order.status)
+  // For a refunded order, show what stopped it (rejected / cancelled) and then the refund.
+  const stoppedBy = order.status === 'refunded' ? ([...order.status_history].reverse().find((h) => STOPPED.includes(h.status))?.status ?? null) : failed ? order.status : null
   const reachedAt = (s: OrderStatus) => [...order.status_history].reverse().find((h) => h.status === s)?.at
   const currentIndex = failed
     ? Math.max(...steps.map((s, i) => (reachedAt(s) ? i : -1)))
@@ -56,14 +59,27 @@ export function StatusTimeline({ order }: { order: Order }) {
           </li>
         )
       })}
-      {failed && (
+      {stoppedBy && (
         <li className="mt-5 flex gap-3">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-600 text-white">
             <X className="h-4 w-4" />
           </span>
           <div className="pt-0.5">
-            <p className="font-medium text-red-700">{STATUS_LABEL[order.status]}</p>
-            {reachedAt(order.status) && <p className="text-xs text-slate-500">{formatTime(reachedAt(order.status)!)}</p>}
+            <p className="font-medium text-red-700">
+              {stoppedBy === 'cancelled' && order.cancellation_reason === 'dealer_timeout' ? 'Cancelled: dealer didn’t respond' : STATUS_LABEL[stoppedBy]}
+            </p>
+            {reachedAt(stoppedBy) && <p className="text-xs text-slate-500">{formatTime(reachedAt(stoppedBy)!)}</p>}
+          </div>
+        </li>
+      )}
+      {order.status === 'refunded' && (
+        <li className="mt-4 flex gap-3">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-600 text-white">
+            <Undo2 className="h-4 w-4" />
+          </span>
+          <div className="pt-0.5">
+            <p className="font-medium text-green-700">{forDealer ? 'Refund sent to the customer' : 'Refund sent to your M-Pesa'}</p>
+            {reachedAt('refunded') && <p className="text-xs text-slate-500">{formatTime(reachedAt('refunded')!)}</p>}
           </div>
         </li>
       )}
