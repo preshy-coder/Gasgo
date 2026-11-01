@@ -1,19 +1,27 @@
 from django.contrib import admin
 
-from .models import Brand, Dealer, DealerProduct
+from .models import Brand, Dealer, DealerStock, Product
 
 
-class DealerProductInline(admin.TabularInline):
-    model = DealerProduct
+class DealerStockInline(admin.TabularInline):
+    model = DealerStock
     extra = 1
 
 
 @admin.register(Dealer)
 class DealerAdmin(admin.ModelAdmin):
-    list_display = ("name", "phone", "is_active", "delivery_radius_km")
-    list_filter = ("is_active",)
-    search_fields = ("name", "phone")
-    inlines = [DealerProductInline]
+    list_display = ("name", "phone", "is_open", "is_active", "delivery_radius_km")
+    list_filter = ("is_open", "is_active")
+    search_fields = ("name", "phone", "address")
+    inlines = [DealerStockInline]
 
 
-admin.site.register(Brand)
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "is_active")
+    list_filter = ("type", "is_active")
+
+
+@admin.register(Brand)
+class BrandAdmin(admin.ModelAdmin):
+    list_display = ("name", "key")

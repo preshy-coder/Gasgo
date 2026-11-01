@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.db import models
 
-from dealers.models import Dealer, DealerProduct
+from dealers.models import Dealer, DealerStock
 
 
 class Order(models.Model):
@@ -38,7 +38,7 @@ class Order(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="orders"
     )
     dealer = models.ForeignKey(Dealer, on_delete=models.PROTECT, related_name="orders")
-    product = models.ForeignKey(DealerProduct, on_delete=models.PROTECT)
+    product = models.ForeignKey(DealerStock, on_delete=models.PROTECT)
 
     customer_phone = models.CharField(max_length=15, help_text="Format 2547XXXXXXXX")
     latitude = models.FloatField()
