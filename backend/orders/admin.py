@@ -1,6 +1,18 @@
 from django.contrib import admin
 
-from .models import Order, Payment
+from .models import Address, Order, OrderItem, Payment, StatusChange
+
+
+class OrderItemInline(admin.TabularInline):
+    model = OrderItem
+    extra = 0
+
+
+class StatusChangeInline(admin.TabularInline):
+    model = StatusChange
+    extra = 0
+    can_delete = False
+    readonly_fields = ("status", "at")
 
 
 class PaymentInline(admin.TabularInline):
@@ -11,14 +23,28 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("id", "status", "dealer", "customer_phone", "total", "created_at")
-    list_filter = ("status", "dealer")
-    search_fields = ("customer_phone", "address_note")
-    inlines = [PaymentInline]
+    list_display = ("order_number", "status", "type", "dealer", "customer", "total_kes", "created_at")
+    list_filter = ("status", "type", "dealer")
+    search_fields = ("customer__phone", "dealer__name")
+    readonly_fields = ("status",)  
+    inlines = [OrderItemInline, PaymentInline, StatusChangeInline]
+    actions = ["mark_refunded"]
+
+    @admin.action(description="Mark selected orders as refunded")
+    def mark_refunded(self, request, queryset):
+        done = 0
+        for order in queryset:
+            if order.can_move_to(Order.Status.REFUNDED):
+                order.move_to(Order.Status.REFUNDED)
+                done += 1
+        self.message_user(request, f"{done} order(s) marked refunded.")
 
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
-    list_display = ("id", "order", "amount", "status", "mpesa_receipt", "created_at")
+    list_display = ("id", "order", "amount_kes", "status", "mpesa_receipt", "created_at")
     list_filter = ("status",)
     search_fields = ("mpesa_receipt", "checkout_request_id", "phone")
+
+
+admin.site.register(Address)
