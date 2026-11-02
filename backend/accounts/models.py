@@ -46,3 +46,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.phone
 
+class OTPCode(models.Model):
+    """A one-time login code sent by SMS. Only a hash is stored, never the code itself."""
+
+    phone = models.CharField(max_length=12, db_index=True)
+    code_hash = models.CharField(max_length=128)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    used = models.BooleanField(default=False)

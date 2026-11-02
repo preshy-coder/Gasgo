@@ -122,3 +122,5 @@ MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
 # Africa's Talking
 AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
 AT_API_KEY = os.getenv("AT_API_KEY", "")
+
+OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "")
