@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -92,10 +93,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+    "EXCEPTION_HANDLER": "config.api_errors.api_exception_handler",
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
 }
 
 # Frontend dev servers allowed to call the API
@@ -111,6 +117,7 @@ MPESA_CONSUMER_SECRET = os.getenv("MPESA_CONSUMER_SECRET", "")
 MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
 MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "")
 MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
+
 
 # Africa's Talking
 AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
