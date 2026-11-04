@@ -51,3 +51,54 @@ class VendorSignupSerializer(serializers.Serializer):
         if not in_service_area(attrs["lat"], attrs["lng"]):
             raise serializers.ValidationError(OUTSIDE_AREA_MESSAGE)
         return attrs
+
+class StockItemSerializer(serializers.ModelSerializer):
+    product = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DealerStock
+        fields = ["id", "product", "quantity", "price_kes"]
+
+    def get_product(self, stock):
+        data = dict(ProductSerializer(stock.product).data)
+        data["price_kes"] = stock.price_kes
+        return data
+
+
+class NewStockSerializer(serializers.Serializer):
+    brand = serializers.CharField(
+        min_length=2,
+        max_length=60,
+        error_messages={
+            "min_length": "Enter the gas brand, e.g. K-Gas.",
+            "blank": "Enter the gas brand, e.g. K-Gas.",
+            "required": "Enter the gas brand, e.g. K-Gas.",
+        },
+    )
+    size_kg = serializers.IntegerField(
+        min_value=1,
+        max_value=100,
+        error_messages={"min_value": "Choose the cylinder size.", "required": "Choose the cylinder size."},
+    )
+    type = serializers.ChoiceField(choices=Product.Type.choices)
+    price_kes = serializers.IntegerField(
+        min_value=1,
+        error_messages={"min_value": "Enter the price in KES.", "required": "Enter the price in KES."},
+    )
+    quantity = serializers.IntegerField(
+        min_value=0, default=0, error_messages={"min_value": "Quantity cannot be negative."}
+    )
+
+
+class StockUpdateSerializer(serializers.Serializer):
+    quantity = serializers.IntegerField(
+        min_value=0, required=False, error_messages={"min_value": "Quantity cannot be negative."}
+    )
+    price_kes = serializers.IntegerField(
+        min_value=1, required=False, error_messages={"min_value": "Enter a price above 0."}
+    )
+
+
+class ShopUpdateSerializer(serializers.Serializer):
+    is_open = serializers.BooleanField()
+    
