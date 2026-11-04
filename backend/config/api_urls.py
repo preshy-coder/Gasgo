@@ -10,6 +10,7 @@ from dealers.views import (
     StockListCreateView,
     VendorRegisterView,
 )
+from orders.payments import MpesaCallbackView, OrderPayView
 from orders.views import (
     AddressDetailView,
     AddressListCreateView,
@@ -37,6 +38,8 @@ urlpatterns = [
     path("orders/", OrderListCreateView.as_view()),
     path("orders/<int:pk>/", OrderDetailView.as_view()),
     path("orders/<int:pk>/cancel/", OrderCancelView.as_view()),
+    path("orders/<int:pk>/pay/", OrderPayView.as_view()),
+    path("payments/mpesa/callback/<str:token>/", MpesaCallbackView.as_view()),
     path("dealer/orders/", DealerOrderListView.as_view()),
     path("dealer/orders/<int:pk>/accept/", DealerAcceptView.as_view()),
     path("dealer/orders/<int:pk>/reject/", DealerRejectView.as_view()),
@@ -44,5 +47,4 @@ urlpatterns = [
     path("dealer/shop/", MyShopView.as_view()),
     path("dealer/stock/", StockListCreateView.as_view()),
     path("dealer/stock/<int:pk>/", StockDetailView.as_view()),
-    
 ]
