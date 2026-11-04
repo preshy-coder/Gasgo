@@ -41,7 +41,7 @@ class Order(models.Model):
 
     TRANSITIONS = {
         Status.PLACED: {Status.PAID, Status.PAYMENT_FAILED, Status.CANCELLED},
-        Status.PAYMENT_FAILED: {Status.PLACED, Status.CANCELLED},  
+        Status.PAYMENT_FAILED: {Status.PLACED, Status.PAID, Status.CANCELLED},  
         Status.PAID: {Status.ACCEPTED, Status.REJECTED_BY_DEALER, Status.CANCELLED},
         Status.ACCEPTED: {Status.OUT_FOR_DELIVERY, Status.READY_FOR_PICKUP},
         Status.OUT_FOR_DELIVERY: {Status.DELIVERED},

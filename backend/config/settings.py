@@ -124,3 +124,9 @@ AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
 AT_API_KEY = os.getenv("AT_API_KEY", "")
 
 OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "")
+
+# M-Pesa extras
+MPESA_ENV = os.getenv("MPESA_ENV", "sandbox") 
+MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")  
+MPESA_CALLBACK_BASE_URL = os.getenv("MPESA_CALLBACK_BASE_URL", "")  
+MPESA_CALLBACK_SECRET = os.getenv("MPESA_CALLBACK_SECRET", "")  
