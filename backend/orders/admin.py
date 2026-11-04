@@ -29,6 +29,16 @@ class OrderAdmin(admin.ModelAdmin):
     readonly_fields = ("status",)  
     inlines = [OrderItemInline, PaymentInline, StatusChangeInline]
     actions = ["mark_refunded"]
+    actions = ["mark_paid", "mark_refunded"]
+
+    @admin.action(description="TESTING: mark selected orders as paid")
+    def mark_paid(self, request, queryset):
+        done = 0
+        for order in queryset:
+            if order.can_move_to(Order.Status.PAID):
+                order.move_to(Order.Status.PAID)
+                done += 1
+        self.message_user(request, f"{done} order(s) marked paid.")
 
     @admin.action(description="Mark selected orders as refunded")
     def mark_refunded(self, request, queryset):
@@ -48,3 +58,4 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Address)
+actions = ["mark_paid", "mark_refunded"]
