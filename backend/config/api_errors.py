@@ -28,8 +28,9 @@ def api_exception_handler(exc, context):
         response.data = {"error": first, "code": "validation_error", "field_errors": field_errors}
     else:
         detail = getattr(exc, "detail", "Request failed.")
-        code = getattr(exc, "default_code", "error")
-        if isinstance(detail, dict):  # the JWT library nests its message
+        codes = exc.get_codes() if hasattr(exc, "get_codes") else None
+        code = codes if isinstance(codes, str) else getattr(exc, "default_code", "error")
+        if isinstance(detail, dict):  
             code = detail.get("code", code)
             detail = detail.get("detail", "Request failed.")
         response.data = {"error": str(detail), "code": str(code)}

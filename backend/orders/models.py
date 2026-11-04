@@ -35,7 +35,7 @@ class Order(models.Model):
         READY_FOR_PICKUP = "ready_for_pickup", "Ready for pickup"
         COLLECTED = "collected", "Collected"
         PAYMENT_FAILED = "payment_failed", "Payment failed"
-        REJECTED_BY_DEALER = "rejected_by_dealer", "Rejected by dealer"
+        REJECTED_BY_DEALER = "rejected_by_dealer", "Rejected by dealer" 
         CANCELLED = "cancelled", "Cancelled"
         REFUNDED = "refunded", "Refunded"
 
@@ -59,6 +59,7 @@ class Order(models.Model):
     address = models.ForeignKey(Address, on_delete=models.PROTECT, null=True, blank=True)  # empty for pickup
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLACED)
     reject_reason = models.CharField(max_length=255, blank=True)
+    cancellation_reason = models.CharField(max_length=20, blank=True)
 
     subtotal_kes = models.PositiveIntegerField()
     delivery_fee_kes = models.PositiveIntegerField(default=0)
@@ -83,7 +84,7 @@ class Order(models.Model):
         return payment.mpesa_receipt if payment else None
 
     def can_move_to(self, new_status):
-        return new_status in self.TRANSITIONS.get(self.Status(self.status), set())
+         return self.Status(new_status) in self.TRANSITIONS.get(self.Status(self.status), set())
 
     @transaction.atomic
     def move_to(self, new_status):
