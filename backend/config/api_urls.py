@@ -2,7 +2,14 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from accounts.views import MeView, OTPRequestView, OTPVerifyView
-from dealers.views import DealerListView, ProductListView, VendorRegisterView
+from dealers.views import (
+    DealerListView,
+    MyShopView,
+    ProductListView,
+    StockDetailView,
+    StockListCreateView,
+    VendorRegisterView,
+)
 from orders.views import (
     AddressDetailView,
     AddressListCreateView,
@@ -34,5 +41,8 @@ urlpatterns = [
     path("dealer/orders/<int:pk>/accept/", DealerAcceptView.as_view()),
     path("dealer/orders/<int:pk>/reject/", DealerRejectView.as_view()),
     path("dealer/orders/<int:pk>/status/", DealerStatusView.as_view()),
-
+    path("dealer/shop/", MyShopView.as_view()),
+    path("dealer/stock/", StockListCreateView.as_view()),
+    path("dealer/stock/<int:pk>/", StockDetailView.as_view()),
+    
 ]

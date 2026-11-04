@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.db.models import Min, Prefetch
 from rest_framework import generics
-from rest_framework.exceptions import APIException, ValidationError
+from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -9,8 +9,16 @@ from accounts.models import User
 from accounts.serializers import UserSerializer
 from config.geo import distance_km
 
-from .models import Dealer, DealerStock, Product
-from .serializers import DealerSerializer, ProductSerializer, VendorSignupSerializer
+from .models import Brand, Dealer, DealerStock, Product, brand_key
+from .serializers import (
+    DealerSerializer,
+    NewStockSerializer,
+    ProductSerializer,
+    ShopUpdateSerializer,
+    StockItemSerializer,
+    StockUpdateSerializer,
+    VendorSignupSerializer,
+)
 
 
 class AlreadyVendor(APIException):
@@ -96,3 +104,87 @@ class VendorRegisterView(APIView):
             {"user": UserSerializer(user).data, "dealer": DealerSerializer(dealer).data},
             status=201,
         )
+
+class StockError(APIException):
+    status_code = 400
+
+    def __init__(self, message, code):
+        super().__init__(detail=message, code=code)
+
+
+def my_dealer(user):
+    dealer = getattr(user, "dealer", None)
+    if dealer is None:
+        raise PermissionDenied("Vendors only.")
+    return dealer
+
+
+class MyShopView(APIView):
+    def get(self, request):
+        return Response(DealerSerializer(my_dealer(request.user)).data)
+
+    def patch(self, request):
+        dealer = my_dealer(request.user)
+        serializer = ShopUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        dealer.is_open = serializer.validated_data["is_open"]
+        dealer.save(update_fields=["is_open"])
+        return Response(DealerSerializer(dealer).data)
+
+
+class StockListCreateView(APIView):
+    def get(self, request):
+        stock = (
+            DealerStock.objects.filter(dealer=my_dealer(request.user))
+            .select_related("product__brand")
+            .order_by("product__brand__name", "product__size_kg")
+        )
+        return Response(StockItemSerializer(stock, many=True).data)
+
+    def post(self, request):
+        dealer = my_dealer(request.user)
+        serializer = NewStockSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        with transaction.atomic():
+            # "kgas", "K-Gas" and "K Gas" are the same brand.
+            brand = Brand.objects.filter(key=brand_key(data["brand"])).first()
+            if brand is None:
+                brand = Brand.objects.create(name=data["brand"])
+            product, _ = Product.objects.get_or_create(brand=brand, size_kg=data["size_kg"], type=data["type"])
+            if DealerStock.objects.filter(dealer=dealer, product=product).exists():
+                kind = "refill" if product.type == Product.Type.REFILL else "new cylinder"
+                raise StockError(
+                    f"{brand.name} {product.size_kg}kg {kind} is already in your stock. Update it below instead.",
+                    "duplicate",
+                )
+            stock = DealerStock.objects.create(
+                dealer=dealer, product=product, quantity=data["quantity"], price_kes=data["price_kes"]
+            )
+        return Response(StockItemSerializer(stock).data, status=201)
+
+
+class StockDetailView(APIView):
+    def _get_stock(self, request, pk):
+        stock = (
+            DealerStock.objects.select_related("product__brand")
+            .filter(pk=pk, dealer=my_dealer(request.user))
+            .first()
+        )
+        if stock is None:
+            raise NotFound("Gas type not found.")
+        return stock
+
+    def patch(self, request, pk):
+        stock = self._get_stock(request, pk)
+        serializer = StockUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(stock, field, value)
+        stock.save()
+        return Response(StockItemSerializer(stock).data)
+
+    def delete(self, request, pk):
+        self._get_stock(request, pk).delete()
+        return Response(status=204)
