@@ -2,14 +2,29 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
+
+def env_list(name, default=""):
+    return [v.strip() for v in os.getenv(name, default).split(",") if v.strip()]
+
+
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-insecure-key")
-DEBUG = os.getenv("DEBUG", "True") == "True"
-ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost").split(",") if h]
+# Safe default: debug is OFF unless .env says DEBUG=True (local development)
+DEBUG = os.getenv("DEBUG", "False") == "True"
+
+if not DEBUG and SECRET_KEY in ("dev-only-insecure-key", "change-me"):
+    raise RuntimeError("Set a real SECRET_KEY in the environment before running in production.")
+
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
+# Render tells us its own hostname automatically
+_render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -30,6 +45,7 @@ AUTH_USER_MODEL = "accounts.User"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -57,7 +73,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if os.getenv("DB_NAME"):
+if os.getenv("DATABASE_URL"):
+    # Production (Render gives us this single address)
+    DATABASES = {"default": dj_database_url.config(conn_max_age=600)}
+elif os.getenv("DB_NAME"):
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -89,6 +108,11 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
@@ -104,12 +128,24 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=30),
 }
 
-# Frontend dev servers allowed to call the API
+# Frontends allowed to call the API. In production, set CORS_ALLOWED_ORIGINS to
+# the live frontend address, e.g. https://gasgo.pages.dev
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-]
+] + env_list("CORS_ALLOWED_ORIGINS")
+
+# Needed for the /admin/ login over HTTPS
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+if _render_host:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_render_host}")
+
+# Behind Render's HTTPS proxy
+if not DEBUG:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # M-Pesa (Daraja)
 MPESA_CONSUMER_KEY = os.getenv("MPESA_CONSUMER_KEY", "")
@@ -118,15 +154,15 @@ MPESA_SHORTCODE = os.getenv("MPESA_SHORTCODE", "")
 MPESA_PASSKEY = os.getenv("MPESA_PASSKEY", "")
 MPESA_CALLBACK_URL = os.getenv("MPESA_CALLBACK_URL", "")
 
-
 # Africa's Talking
 AT_USERNAME = os.getenv("AT_USERNAME", "sandbox")
 AT_API_KEY = os.getenv("AT_API_KEY", "")
 
-OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "")
+# The fixed test code only ever works in local development
+OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "") if DEBUG else ""
 
 # M-Pesa extras
-MPESA_ENV = os.getenv("MPESA_ENV", "sandbox") 
-MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")  
-MPESA_CALLBACK_BASE_URL = os.getenv("MPESA_CALLBACK_BASE_URL", "")  
-MPESA_CALLBACK_SECRET = os.getenv("MPESA_CALLBACK_SECRET", "")  
+MPESA_ENV = os.getenv("MPESA_ENV", "sandbox")
+MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")
+MPESA_CALLBACK_BASE_URL = os.getenv("MPESA_CALLBACK_BASE_URL", "")
+MPESA_CALLBACK_SECRET = os.getenv("MPESA_CALLBACK_SECRET", "")
