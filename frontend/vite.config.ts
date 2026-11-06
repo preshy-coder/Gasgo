@@ -28,10 +28,15 @@ export default defineConfig({
       },
       workbox: {
         navigateFallback: '/index.html',
-        // Never cache API responses: order and payment status must always be fresh.
         navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev'],
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+    },
+  },
 })
