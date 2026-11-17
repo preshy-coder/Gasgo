@@ -81,7 +81,7 @@ def _locked_dealer_order(user, pk):
 class QuoteView(APIView):
     def post(self, request):
         quote = build_quote(request.user, *_parse_cart(request))
-        return Response({k: quote[k] for k in ("subtotal_kes", "delivery_fee_kes", "total_kes")})
+        return Response({k: quote[k] for k in ("subtotal_kes", "delivery_fee_kes", "service_fee_kes", "total_kes")})
 
 
 class OrderListCreateView(APIView):

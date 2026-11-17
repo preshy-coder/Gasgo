@@ -63,6 +63,7 @@ class Order(models.Model):
 
     subtotal_kes = models.PositiveIntegerField()
     delivery_fee_kes = models.PositiveIntegerField(default=0)
+    service_fee_kes = models.PositiveIntegerField(default=0)  # Gasgo's own fee, kept by the platform
     total_kes = models.PositiveIntegerField()
 
     created_at = models.DateTimeField(auto_now_add=True)

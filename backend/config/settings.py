@@ -167,5 +167,8 @@ MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnl
 MPESA_CALLBACK_BASE_URL = os.getenv("MPESA_CALLBACK_BASE_URL", "")
 MPESA_CALLBACK_SECRET = os.getenv("MPESA_CALLBACK_SECRET", "")
 
+# Gasgo's service fee, added to every order on top of gas + delivery (KES). 0 turns it off.
+SERVICE_FEE_KES = int(os.getenv("SERVICE_FEE_KES", "50"))
+
 # Testing shortcuts in the admin (e.g. "mark as paid"). Keep OFF for real customers.
 ENABLE_TEST_TOOLS = os.getenv("ENABLE_TEST_TOOLS", "False") == "True"

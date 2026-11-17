@@ -56,7 +56,7 @@ export default function DealerOrderDetail() {
             ))}
           </ul>
           <p className="mt-3 border-t border-slate-100 pt-2 text-sm">
-            Paid {formatKes(o.total_kes)}
+            Order value {formatKes(o.subtotal_kes + o.delivery_fee_kes)}
             {o.mpesa_receipt && <span className="text-slate-500"> · {o.mpesa_receipt}</span>}
           </p>
         </Card>

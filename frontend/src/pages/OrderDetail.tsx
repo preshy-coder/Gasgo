@@ -131,6 +131,12 @@ export default function OrderDetail() {
                 <span className="tabular-nums">{formatKes(o.delivery_fee_kes)}</span>
               </li>
             )}
+            {o.service_fee_kes > 0 && (
+              <li className="flex justify-between text-slate-600">
+                <span>Service fee</span>
+                <span className="tabular-nums">{formatKes(o.service_fee_kes)}</span>
+              </li>
+            )}
             <li className="flex justify-between border-t border-slate-100 pt-2 font-bold">
               <span>Total</span>
               <span className="tabular-nums">{formatKes(o.total_kes)}</span>
