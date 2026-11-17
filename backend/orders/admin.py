@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 
 from .models import Address, Order, OrderItem, Payment, StatusChange
@@ -28,8 +29,14 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ("customer__phone", "dealer__name")
     readonly_fields = ("status",)  
     inlines = [OrderItemInline, PaymentInline, StatusChangeInline]
-    actions = ["mark_refunded"]
     actions = ["mark_paid", "mark_refunded"]
+
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        # The testing shortcut only exists when ENABLE_TEST_TOOLS=True
+        if not settings.ENABLE_TEST_TOOLS:
+            actions.pop("mark_paid", None)
+        return actions
 
     @admin.action(description="TESTING: mark selected orders as paid")
     def mark_paid(self, request, queryset):
@@ -58,4 +65,3 @@ class PaymentAdmin(admin.ModelAdmin):
 
 
 admin.site.register(Address)
-actions = ["mark_paid", "mark_refunded"]
