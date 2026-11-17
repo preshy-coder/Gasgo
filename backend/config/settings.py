@@ -166,3 +166,6 @@ MPESA_ENV = os.getenv("MPESA_ENV", "sandbox")
 MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")
 MPESA_CALLBACK_BASE_URL = os.getenv("MPESA_CALLBACK_BASE_URL", "")
 MPESA_CALLBACK_SECRET = os.getenv("MPESA_CALLBACK_SECRET", "")
+
+# Testing shortcuts in the admin (e.g. "mark as paid"). Keep OFF for real customers.
+ENABLE_TEST_TOOLS = os.getenv("ENABLE_TEST_TOOLS", "False") == "True"
