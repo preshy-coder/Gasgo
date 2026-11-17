@@ -24,7 +24,7 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ("order_number", "status", "type", "dealer", "customer", "total_kes", "created_at")
+    list_display = ("order_number", "status", "type", "dealer", "customer", "total_kes", "service_fee_kes", "created_at")
     list_filter = ("status", "type", "dealer")
     search_fields = ("customer__phone", "dealer__name")
     readonly_fields = ("status",)  

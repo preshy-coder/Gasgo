@@ -66,7 +66,7 @@ export default function DealerOrders() {
               </div>
               <p className="truncate text-sm text-white/75">{o.items.map((i) => `${i.quantity}× ${productName(i.product)}`).join(', ')}</p>
               <p className="text-xs text-white/50">
-                {formatTime(o.created_at)} · {o.type === 'delivery' ? 'Delivery' : 'Pickup'} · {formatKes(o.total_kes)}
+                {formatTime(o.created_at)} · {o.type === 'delivery' ? 'Delivery' : 'Pickup'} · {formatKes(o.subtotal_kes + o.delivery_fee_kes)}
               </p>
             </div>
             <ChevronRight className="h-5 w-5 text-white/50" />

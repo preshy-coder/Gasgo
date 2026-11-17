@@ -70,7 +70,7 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             "id", "order_number", "type", "status", "items", "dealer", "address", "customer",
-            "subtotal_kes", "delivery_fee_kes", "total_kes", "mpesa_receipt",
+            "subtotal_kes", "delivery_fee_kes", "service_fee_kes", "total_kes", "mpesa_receipt",
             "status_history", "cancellation_reason", "created_at",
         ]
 

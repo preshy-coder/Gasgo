@@ -1,5 +1,6 @@
 import math
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework.exceptions import APIException, NotFound
 
@@ -62,13 +63,16 @@ def build_quote(user, order_type, dealer_id, address_id, lines):
             raise OrderError(f"{dealer.name} doesn't deliver that far ({km:.1f} km).", "out_of_range")
         fee = delivery_fee(km)
 
+    service_fee = settings.SERVICE_FEE_KES
+
     return {
         "dealer": dealer,
         "address": address,
         "items": items,
         "subtotal_kes": subtotal,
         "delivery_fee_kes": fee,
-        "total_kes": subtotal + fee,
+        "service_fee_kes": service_fee,
+        "total_kes": subtotal + fee + service_fee,
     }
 
 
@@ -82,6 +86,7 @@ def create_order(user, order_type, dealer_id, address_id, lines):
         address=quote["address"],
         subtotal_kes=quote["subtotal_kes"],
         delivery_fee_kes=quote["delivery_fee_kes"],
+        service_fee_kes=quote["service_fee_kes"],
         total_kes=quote["total_kes"],
     )
     OrderItem.objects.bulk_create(

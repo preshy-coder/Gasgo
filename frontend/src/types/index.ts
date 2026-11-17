@@ -149,6 +149,7 @@ export interface Order {
   customer?: { name: string; phone: string }
   subtotal_kes: number
   delivery_fee_kes: number
+  service_fee_kes: number
   total_kes: number
   mpesa_receipt: string | null
   cancellation_reason: CancellationReason | null
@@ -171,6 +172,7 @@ export interface QuoteRequest {
 export interface Quote {
   subtotal_kes: number
   delivery_fee_kes: number
+  service_fee_kes: number
   total_kes: number
 }
 

@@ -29,12 +29,13 @@ import { OUTSIDE_AREA_MESSAGE, isInServiceArea } from '../lib/serviceArea'
 
 export const MOCK_OTP = '123456'
 export const MOCK_DEALER_PHONE = '254700000001'
+const SERVICE_FEE_KES = 50 // Gasgo's fee on every order (the real value comes from the backend)
 const PAYMENT_DELAY_MS = 4000
 /** Demo: a paid order the dealer hasn't accepted after this long is cancelled automatically. */
 const DEALER_TIMEOUT_MS = 3 * 60_000
 /** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
 const REFUND_DELAY_MS = 8000
-const KEY = 'gasgo-mock-db-v3' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v4' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -231,7 +232,14 @@ function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { 
     const { user_id, ...rest } = a
     address = rest
   }
-  return { subtotal_kes: subtotal, delivery_fee_kes: fee, total_kes: subtotal + fee, dealer, address }
+  return {
+    subtotal_kes: subtotal,
+    delivery_fee_kes: fee,
+    service_fee_kes: SERVICE_FEE_KES,
+    total_kes: subtotal + fee + SERVICE_FEE_KES,
+    dealer,
+    address,
+  }
 }
 
 function dealerOrder(db: MockDb, id: number): MockOrder {
@@ -381,7 +389,12 @@ export const mockApi: GasgoApi = {
     const db = load()
     const user = currentUser(db)
     const q = computeQuote(db, user.id, req)
-    return { subtotal_kes: q.subtotal_kes, delivery_fee_kes: q.delivery_fee_kes, total_kes: q.total_kes }
+    return {
+      subtotal_kes: q.subtotal_kes,
+      delivery_fee_kes: q.delivery_fee_kes,
+      service_fee_kes: q.service_fee_kes,
+      total_kes: q.total_kes,
+    }
   },
 
   async listOrders() {
@@ -426,6 +439,7 @@ export const mockApi: GasgoApi = {
       customer: { name: user.name || 'Customer', phone: user.phone },
       subtotal_kes: q.subtotal_kes,
       delivery_fee_kes: q.delivery_fee_kes,
+      service_fee_kes: q.service_fee_kes,
       total_kes: q.total_kes,
       mpesa_receipt: null,
       cancellation_reason: null,
