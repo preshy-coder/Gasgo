@@ -63,6 +63,9 @@ class OTPRequestView(APIView):
             code = f"{secrets.randbelow(1_000_000):06d}"
 
         OTPCode.objects.create(phone=phone, code_hash=make_password(code), expires_at=now + CODE_LIFETIME)
+        if settings.OTP_TEST_ALL:
+            # DEMO MODE: no SMS; the app gets the code and fills it in for the user.
+            return Response({"demo_code": code})
         if not is_tester:
             send_sms(phone, f"Your Gasgo code is {code}. It expires in 5 minutes.")
         return Response(status=204)

@@ -24,7 +24,8 @@ import type {
  */
 export interface GasgoApi {
   // Auth
-  requestOtp(phone: string): Promise<void>
+  /** In the server's demo mode the reply carries the code, so the app can fill it in. Otherwise undefined. */
+  requestOtp(phone: string): Promise<{ demo_code?: string } | undefined>
   verifyOtp(phone: string, code: string): Promise<VerifyOtpResponse>
   getMe(): Promise<User>
   updateMe(data: Partial<Pick<User, 'name'>>): Promise<User>

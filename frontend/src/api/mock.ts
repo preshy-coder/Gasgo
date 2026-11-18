@@ -275,6 +275,7 @@ export const mockApi: GasgoApi = {
   async requestOtp(phone) {
     await wait()
     if (!/^254[17]\d{8}$/.test(phone)) throw new ApiError('Enter a valid Kenyan phone number.', 400, 'invalid_phone')
+    return undefined
   },
 
   async verifyOtp(phone, code) {

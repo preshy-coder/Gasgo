@@ -47,6 +47,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [resendIn, setResendIn] = useState(0)
+  const [demoFilled, setDemoFilled] = useState(false)
   const codeRef = useRef<HTMLInputElement>(null)
 
   // Vendor shop details
@@ -75,8 +76,11 @@ export default function Login() {
     if (!normalized) return setError('Enter a valid Safaricom or Airtel number, e.g. 0712 345 678.')
     setBusy(true)
     try {
-      await api.requestOtp(normalized)
+      const res = await api.requestOtp(normalized)
       setPhone(normalized)
+      // Demo mode (no SMS yet): the server sends the code back and we fill it in.
+      setDemoFilled(Boolean(res?.demo_code))
+      if (res?.demo_code) setCode(res.demo_code)
       setStep('code')
       setResendIn(60)
       setTimeout(() => codeRef.current?.focus(), 50)
@@ -266,6 +270,11 @@ export default function Login() {
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                   />
+                  {demoFilled && (
+                    <p className="px-1 text-xs text-amber-200">
+                      Demo mode: no SMS is sent yet, so we filled in your code. Tap Verify.
+                    </p>
+                  )}
                   <button
                     type="button"
                     disabled={resendIn > 0 || busy}
