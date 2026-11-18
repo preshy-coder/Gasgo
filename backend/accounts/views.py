@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import OTPCode, User
+from .phone import normalize_phone
 from .serializers import OTPRequestSerializer, OTPVerifySerializer, UserSerializer
 from .sms import send_sms
 
@@ -19,6 +20,11 @@ CODE_LIFETIME = timedelta(minutes=5)
 RESEND_SECONDS = 60
 MAX_CODES_PER_HOUR = 5
 MAX_WRONG_ATTEMPTS = 5
+
+
+def _tester_numbers():
+    """Phone numbers from OTP_TEST_NUMBERS, in the 2547XXXXXXXX form."""
+    return {n for n in (normalize_phone(x) for x in settings.OTP_TEST_NUMBERS) if n}
 
 
 class InvalidOTP(APIException):
@@ -48,13 +54,17 @@ class OTPRequestView(APIView):
         if recent.count() >= MAX_CODES_PER_HOUR:
             raise Throttled(detail="Too many codes requested. Try again in an hour.")
 
+        is_tester = bool(settings.OTP_TEST_CODE) and phone in _tester_numbers()
         if settings.DEBUG and settings.OTP_DEV_CODE:
             code = settings.OTP_DEV_CODE  # local development only
+        elif is_tester:
+            code = settings.OTP_TEST_CODE  # a listed tester number: fixed code, no SMS sent
         else:
             code = f"{secrets.randbelow(1_000_000):06d}"
 
         OTPCode.objects.create(phone=phone, code_hash=make_password(code), expires_at=now + CODE_LIFETIME)
-        send_sms(phone, f"Your Gasgo code is {code}. It expires in 5 minutes.")
+        if not is_tester:
+            send_sms(phone, f"Your Gasgo code is {code}. It expires in 5 minutes.")
         return Response(status=204)
 
 

@@ -28,6 +28,10 @@ services:
         value: sandbox
       - key: ENABLE_TEST_TOOLS
         value: "True"
+      - key: OTP_TEST_NUMBERS
+        sync: false
+      - key: OTP_TEST_CODE
+        sync: false
       - key: ADMIN_PHONE
         sync: false
       - key: ADMIN_PASSWORD

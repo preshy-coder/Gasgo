@@ -161,6 +161,19 @@ AT_API_KEY = os.getenv("AT_API_KEY", "")
 # The fixed test code only ever works in local development
 OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "") if DEBUG else ""
 
+# Tester numbers: these phones get the fixed OTP_TEST_CODE and no SMS (so friends and
+# teammates can try the live app while real SMS is not available). Leave empty for launch.
+OTP_TEST_NUMBERS = env_list("OTP_TEST_NUMBERS")
+OTP_TEST_CODE = os.getenv("OTP_TEST_CODE", "")
+
+# Show the app's own log messages (e.g. what Africa's Talking replied) in the server logs
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "loggers": {"accounts": {"handlers": ["console"], "level": "INFO"}},
+}
+
 # M-Pesa extras
 MPESA_ENV = os.getenv("MPESA_ENV", "sandbox")
 MPESA_TRANSACTION_TYPE = os.getenv("MPESA_TRANSACTION_TYPE", "CustomerPayBillOnline")
