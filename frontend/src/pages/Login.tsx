@@ -91,7 +91,7 @@ export default function Login() {
 
   const verify = async () => {
     setError('')
-    if (!/^\d{6}$/.test(code)) return setError('Enter the 6-digit code from the SMS.')
+    if (!/^\d{6}$/.test(code)) return setError('Enter the 6-digit code.')
     setBusy(true)
     try {
       const res = await api.verifyOtp(phone, code)
@@ -253,7 +253,7 @@ export default function Login() {
               {step === 'code' && (
                 <>
                   <label className="block px-1 text-sm text-white/75" htmlFor="otp">
-                    Enter the code from the SMS
+                    Verification code
                   </label>
                   <input
                     id="otp"
