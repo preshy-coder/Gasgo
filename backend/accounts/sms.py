@@ -48,4 +48,5 @@ def send_sms(phone, message):
     if not recipients or recipients[0].get("statusCode") != 101:
         logger.error("SMS to %s rejected: %s", phone, recipients)
         return False
+    logger.info("SMS to %s accepted by Africa's Talking: %s", phone, recipients[0])
     return True
