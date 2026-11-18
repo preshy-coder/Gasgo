@@ -54,17 +54,18 @@ class OTPRequestView(APIView):
         if recent.count() >= MAX_CODES_PER_HOUR:
             raise Throttled(detail="Too many codes requested. Try again in an hour.")
 
-        is_tester = bool(settings.OTP_TEST_CODE) and (
-            settings.OTP_TEST_ALL or phone in _tester_numbers()
-        )
+        is_tester = bool(settings.OTP_TEST_CODE) and phone in _tester_numbers()
         if settings.DEBUG and settings.OTP_DEV_CODE:
             code = settings.OTP_DEV_CODE  # local development only
         elif is_tester:
-            code = settings.OTP_TEST_CODE  # demo mode or a listed tester number: fixed code, no SMS sent
+            code = settings.OTP_TEST_CODE  # a listed tester number: fixed code, no SMS sent
         else:
             code = f"{secrets.randbelow(1_000_000):06d}"
 
         OTPCode.objects.create(phone=phone, code_hash=make_password(code), expires_at=now + CODE_LIFETIME)
+        if settings.OTP_TEST_ALL:
+            # DEMO MODE: no SMS; the app gets the code and fills it in for the user.
+            return Response({"demo_code": code})
         if not is_tester:
             send_sms(phone, f"Your Gasgo code is {code}. It expires in 5 minutes.")
         return Response(status=204)

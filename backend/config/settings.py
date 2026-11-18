@@ -165,7 +165,8 @@ OTP_DEV_CODE = os.getenv("OTP_DEV_CODE", "") if DEBUG else ""
 # teammates can try the live app while real SMS is not available). Leave empty for launch.
 OTP_TEST_NUMBERS = env_list("OTP_TEST_NUMBERS")
 OTP_TEST_CODE = os.getenv("OTP_TEST_CODE", "")
-# DEMO MODE: when True, EVERY phone number uses OTP_TEST_CODE and no SMS is sent.
+# DEMO MODE: when True, no SMS is sent. The server returns the login code to the app,
+# which fills it in for the user. Anyone can log in as any number.
 # Only for testing with fake (sandbox) money. Turn it off before real customers.
 OTP_TEST_ALL = os.getenv("OTP_TEST_ALL", "False") == "True"
 if OTP_TEST_ALL and os.getenv("MPESA_ENV", "sandbox") == "production":
