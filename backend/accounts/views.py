@@ -54,11 +54,13 @@ class OTPRequestView(APIView):
         if recent.count() >= MAX_CODES_PER_HOUR:
             raise Throttled(detail="Too many codes requested. Try again in an hour.")
 
-        is_tester = bool(settings.OTP_TEST_CODE) and phone in _tester_numbers()
+        is_tester = bool(settings.OTP_TEST_CODE) and (
+            settings.OTP_TEST_ALL or phone in _tester_numbers()
+        )
         if settings.DEBUG and settings.OTP_DEV_CODE:
             code = settings.OTP_DEV_CODE  # local development only
         elif is_tester:
-            code = settings.OTP_TEST_CODE  # a listed tester number: fixed code, no SMS sent
+            code = settings.OTP_TEST_CODE  # demo mode or a listed tester number: fixed code, no SMS sent
         else:
             code = f"{secrets.randbelow(1_000_000):06d}"
 
