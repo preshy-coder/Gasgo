@@ -124,7 +124,7 @@ export default function Location() {
             <p className={`${GLASS} flex items-center gap-2 px-3.5 py-2.5 text-sm`}>
               <MapPin className="h-4 w-4 shrink-0 text-brand-300" />
               <span>
-                We deliver within <b>{SERVICE_AREA.name}, {SERVICE_AREA.county}</b>.
+                Drop the pin where you want your gas delivered.
               </span>
             </p>
             <MapPicker value={pos} onChange={setPos} onAddress={onAddress} />
@@ -138,7 +138,7 @@ export default function Location() {
                 <input
                   id="addr"
                   className={GLASS_INPUT}
-                  placeholder="e.g. Highpoint, Juja, near the stage"
+                  placeholder="e.g. Ngong Rd, Kilimani, near the stage"
                   value={formatted}
                   onChange={(e) => {
                     setFormatted(e.target.value)

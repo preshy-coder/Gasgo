@@ -1,23 +1,24 @@
-// Where Gasgo operates. For now: Juja, Kiambu County.
+// Where Gasgo operates: anywhere in Kenya (the app runs on M-Pesa, Kenyan phone numbers and KES).
+// How far a customer can be from a shop is decided by each dealer's own delivery radius.
 // The backend should enforce the same rule; this copy only gives customers instant feedback.
-// Coordinates are approximate.
 import type { LatLng } from './location'
 
 export const SERVICE_AREA = {
-  name: 'Juja',
-  county: 'Kiambu County',
-  center: { lat: -1.1018, lng: 37.0144 } as LatLng,
-  radiusKm: 10,
+  name: 'Kenya',
+  /** Where the map opens before the customer drops a pin (Nairobi CBD). */
+  center: { lat: -1.2864, lng: 36.8172 } as LatLng,
 }
 
-/** Neighbourhoods offered as quick picks when no map is available (approximate centres). */
-export const JUJA_AREAS: (LatLng & { name: string })[] = [
-  { name: 'Juja Town', lat: -1.1018, lng: 37.0144 },
-  { name: 'JKUAT', lat: -1.0946, lng: 37.0128 },
-  { name: 'Highpoint', lat: -1.1062, lng: 37.0203 },
-  { name: 'Gachororo', lat: -1.0985, lng: 37.0281 },
-  { name: 'Kalimoni', lat: -1.1238, lng: 37.0082 },
-  { name: 'Witeithie', lat: -1.1158, lng: 37.0398 },
+/** Quick picks offered when no map is available (approximate town centres). */
+export const QUICK_AREAS: (LatLng & { name: string })[] = [
+  { name: 'Nairobi CBD', lat: -1.2864, lng: 36.8172 },
+  { name: 'Westlands', lat: -1.2676, lng: 36.8108 },
+  { name: 'Kilimani', lat: -1.2921, lng: 36.7856 },
+  { name: 'Thika', lat: -1.0333, lng: 37.0693 },
+  { name: 'Ruiru', lat: -1.146, lng: 36.96 },
+  { name: 'Nakuru', lat: -0.3031, lng: 36.08 },
+  { name: 'Mombasa', lat: -4.0435, lng: 39.6682 },
+  { name: 'Kisumu', lat: -0.0917, lng: 34.768 },
 ]
 
 export function distanceKm(a: LatLng, b: LatLng): number {
@@ -29,11 +30,11 @@ export function distanceKm(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
+/** Map viewport limits: roughly Kenya. */
+export const SERVICE_BOUNDS = { north: 5.1, south: -4.9, east: 41.95, west: 33.9 }
+
 export function isInServiceArea(p: LatLng): boolean {
-  return distanceKm(p, SERVICE_AREA.center) <= SERVICE_AREA.radiusKm
+  return p.lat <= SERVICE_BOUNDS.north && p.lat >= SERVICE_BOUNDS.south && p.lng <= SERVICE_BOUNDS.east && p.lng >= SERVICE_BOUNDS.west
 }
 
-export const OUTSIDE_AREA_MESSAGE = `Gasgo currently delivers within ${SERVICE_AREA.name}, ${SERVICE_AREA.county} only. Move the pin to a location in ${SERVICE_AREA.name}.`
-
-/** Map viewport limits: roughly Juja and its surroundings. */
-export const SERVICE_BOUNDS = { north: -1.02, south: -1.19, east: 37.11, west: 36.92 }
+export const OUTSIDE_AREA_MESSAGE = 'Gasgo is available in Kenya only. Move the pin to a location in Kenya.'

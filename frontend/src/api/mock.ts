@@ -3,9 +3,9 @@
 //
 // Demo rules:
 //   - The OTP code is always 123456.
-//   - Phone 0700 000 001 logs in as a dealer (Gasgo Demo Dealer, Juja Town).
+//   - Phone 0700 000 001 logs in as a dealer (Gasgo Demo Dealer, Nairobi CBD).
 //   - Each shop lists its own gas types, prices and stock (vendors manage them on the Stock screen).
-//   - Delivery addresses must be within Juja, Kiambu County (see src/lib/serviceArea.ts).
+//   - Delivery addresses and shop pins must be in Kenya (see src/lib/serviceArea.ts).
 //   - Any other phone logs in as a customer.
 //   - Paid orders not accepted within 3 minutes are cancelled (dealer timeout); refunds for
 //     rejected/cancelled paid orders arrive ~8 seconds later (status "refunded").
@@ -34,7 +34,7 @@ const PAYMENT_DELAY_MS = 4000
 const DEALER_TIMEOUT_MS = 3 * 60_000
 /** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
 const REFUND_DELAY_MS = 8000
-const KEY = 'gasgo-mock-db-v3' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v4' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -81,13 +81,13 @@ function stockFor(brands: string[], qty: number, offset = 0, opts: { refillOnly?
   }))
 }
 
-// Demo dealers in Juja, Kiambu County (fictional names, approximate locations).
+// Demo dealers around Nairobi and Thika Road (fictional names, approximate locations).
 const DEALERS: Dealer[] = [
-  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.1021, lng: 37.0139, address: 'Juja Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
-  { id: 2, name: 'JKUAT Gate Gas Point', phone: '254711000002', lat: -1.0951, lng: 37.0106, address: 'Near JKUAT Gate C, Juja', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
-  { id: 3, name: 'Highpoint Gas Centre', phone: '254722000003', lat: -1.1066, lng: 37.0207, address: 'Highpoint, Juja', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
-  { id: 4, name: 'Witeithie Gas Shop', phone: '254744000005', lat: -1.1161, lng: 37.0402, address: 'Witeithie, Juja', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
-  { id: 5, name: 'Kalimoni Energies', phone: '254733000004', lat: -1.1236, lng: 37.0087, address: 'Kalimoni, Juja', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 6, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
+  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
+  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
+  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
+  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
+  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
 ]
 
 function seed(): MockDb {

@@ -115,7 +115,7 @@ export default function Profile() {
             </button>
           )}
         </div>
-        <p className="text-center text-xs text-white/40">Gasgo v0.1.0 · Juja, Kiambu County</p>
+        <p className="text-center text-xs text-white/40">Gasgo v0.1.0</p>
       </div>
     </GlassPage>
   )

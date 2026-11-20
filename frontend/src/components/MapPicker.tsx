@@ -1,13 +1,13 @@
 // Location picker.
 // - With VITE_GOOGLE_MAPS_API_KEY set: a Google Map with a fixed centre pin. The customer drags the map
 //   under the pin (like ride-hailing apps); we reverse-geocode the centre into a readable address.
-//   The map is limited to the Juja area (see src/lib/serviceArea.ts).
-// - Without a key: a simple fallback with "use my location" and quick picks for areas in Juja, so development works.
+//   The map is limited to Kenya (see src/lib/serviceArea.ts).
+// - Without a key: a simple fallback with "use my location" and quick picks for a few towns, so development works.
 import { useEffect, useRef, useState } from 'react'
 import { APIProvider, Map, useMap, useMapsLibrary } from '@vis.gl/react-google-maps'
 import { Crosshair, MapPin, Search } from 'lucide-react'
 import { getCurrentPosition, type LatLng } from '../lib/location'
-import { JUJA_AREAS, SERVICE_BOUNDS } from '../lib/serviceArea'
+import { QUICK_AREAS, SERVICE_BOUNDS } from '../lib/serviceArea'
 
 interface Props {
   value: LatLng
@@ -91,7 +91,7 @@ function GoogleMapPicker({ value, onChange, onAddress }: Props) {
           <Search className="pointer-events-none absolute top-3 left-3 h-4 w-4 text-white/50" />
           <input
             className="w-full rounded-xl border border-white/25 bg-white/10 py-2.5 pr-3 pl-9 text-sm text-white outline-none backdrop-blur-md placeholder:text-white/40 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/25"
-            placeholder="Search in Juja: estate, road or building"
+            placeholder="Search: estate, road, building or town"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -104,7 +104,7 @@ function GoogleMapPicker({ value, onChange, onAddress }: Props) {
           gestureHandling="greedy"
           disableDefaultUI
           restriction={{ latLngBounds: SERVICE_BOUNDS, strictBounds: false }}
-          minZoom={12}
+          minZoom={6}
           onCameraChanged={(e) => onChange(e.detail.center)}
         />
         <MapPin
@@ -166,16 +166,16 @@ function FallbackPicker({ value, onChange, onAddress }: Props) {
         <Crosshair className="h-4 w-4" /> {busy ? 'Finding you…' : 'Use my current location'}
       </button>
       <div>
-        <p className="mb-1.5 text-xs font-semibold tracking-[0.18em] text-white/55 uppercase">Or pick an area in Juja</p>
+        <p className="mb-1.5 text-xs font-semibold tracking-[0.18em] text-white/55 uppercase">Or pick a town</p>
         <div className="flex flex-wrap gap-2">
-          {JUJA_AREAS.map((a) => (
+          {QUICK_AREAS.map((a) => (
             <button
               type="button"
               key={a.name}
               className="rounded-full border border-white/25 bg-white/10 px-3 py-1 text-sm text-white backdrop-blur-md transition-colors hover:bg-white/20"
               onClick={() => {
                 onChange({ lat: a.lat, lng: a.lng })
-                onAddress(`${a.name}, Juja`)
+                onAddress(a.name)
               }}
             >
               {a.name}

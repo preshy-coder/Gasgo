@@ -307,7 +307,7 @@ export default function Login() {
                       id="shop"
                       autoFocus
                       className={INPUT}
-                      placeholder="e.g. Highpoint Gas Centre"
+                      placeholder="e.g. Mama Njeri Gas Centre"
                       value={shopName}
                       onChange={(e) => setShopName(e.target.value)}
                     />
@@ -340,7 +340,7 @@ export default function Login() {
                     <input
                       id="shopaddr"
                       className={INPUT}
-                      placeholder="e.g. Highpoint, Juja, along Gachororo Rd"
+                      placeholder="e.g. Ngong Rd, Kilimani"
                       value={shopAddress}
                       onChange={(e) => setShopAddress(e.target.value)}
                     />
@@ -403,8 +403,8 @@ export default function Login() {
               <div className="absolute inset-0 bg-gradient-to-r from-white via-white/90 to-white/0" />
               <div className="relative flex h-full flex-col justify-center px-4 text-slate-900">
                 <p className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">Now serving</p>
-                <p className="text-2xl leading-tight font-extrabold tracking-tight">JUJA</p>
-                <p className="text-xs text-slate-600">Kiambu County · Delivery & pickup</p>
+                <p className="text-2xl leading-tight font-extrabold tracking-tight">KENYA</p>
+                <p className="text-xs text-slate-600">Delivery & pickup from shops near you</p>
               </div>
             </div>
 

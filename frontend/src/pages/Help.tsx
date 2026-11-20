@@ -14,7 +14,7 @@ const FAQ = [
     a: "If a dealer rejects a paid order, your money is refunded to your M-Pesa. Contact us if it hasn't arrived within 24 hours.",
   },
   { q: 'Can I cancel an order?', a: 'Yes, until the dealer accepts it. Open the order and tap “Cancel order”.' },
-  { q: 'Where do you deliver?', a: 'Within Juja, Kiambu County, including Juja Town, JKUAT, Highpoint, Gachororo, Kalimoni and Witeithie.' },
+  { q: 'Where do you deliver?', a: 'Anywhere in Kenya where a Gasgo shop is nearby. Each shop sets how far it delivers, and you’ll see the shops that can reach your pin. You can also pick up from any shop.' },
 ]
 
 const SAFETY = [

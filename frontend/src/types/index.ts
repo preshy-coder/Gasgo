@@ -80,7 +80,7 @@ export interface Dealer {
 /** What a vendor (gas shop) fills in when joining Gasgo. */
 export interface VendorSignup {
   shop_name: string
-  address: string // written address, e.g. "Highpoint, Juja, next to the stage"
+  address: string // written address, e.g. "Ngong Rd, Kilimani, next to the stage"
   landmark_notes: string
   lat: number // exact pin location
   lng: number

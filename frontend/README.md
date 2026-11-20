@@ -1,6 +1,6 @@
 # Gasgo – frontend
 
-The customer and dealer app for Gasgo, a gas delivery and pickup service, currently serving **Juja, Kiambu County**. It's a PWA (a web app customers can add to their home screen), built with React, TypeScript, Vite and Tailwind CSS.
+The customer and dealer app for Gasgo, a gas delivery and pickup service, serving customers and gas shops across **Kenya**. It's a PWA (a web app customers can add to their home screen), built with React, TypeScript, Vite and Tailwind CSS.
 
 ## Run it
 
@@ -27,7 +27,7 @@ With `VITE_USE_MOCK_API=true` in `.env`, the app uses a fake backend that runs i
 
 - **Login code:** always `123456`
 - **Customer:** any Kenyan number, e.g. `0712 345 678`
-- **Dealer:** `0700 000 001` (logs in as "Gasgo Demo Dealer" in Juja Town)
+- **Dealer:** `0700 000 001` (logs in as "Gasgo Demo Dealer" in Nairobi CBD)
 - **M-Pesa:** payments succeed after about 4 seconds. A number ending in `0000` fails, so you can test the failure screen.
 - **Reset:** Profile → "Reset demo data"
 
@@ -66,9 +66,9 @@ M-Pesa payment buttons stay green so customers recognise them.
 - **Dropdowns** (`src/components/GlassSelect.tsx`): parallax open/close. The glass panel unrolls while the options slide in on a separate layer, each lower option travelling further; closing reverses it.
 - All of these switch off when the phone's "reduce motion" setting is on.
 
-## Service area (Juja)
+## Service area
 
-`src/lib/serviceArea.ts` sets the area: Juja town centre with a 10 km radius, the Juja neighbourhoods used as quick picks, and the map bounds. Pins outside the area are refused with a clear message. The backend must enforce the same rule; the frontend check only gives instant feedback. Coordinates are approximate, so tune them once you have real dealer locations.
+`src/lib/serviceArea.ts`: the app works anywhere in Kenya (pins outside Kenya are refused). How far a customer can be from a shop is set by each dealer's `delivery_radius_km`. It also holds the map's start point (Nairobi CBD) and the quick-pick towns used when there's no Google Maps key. The backend must enforce the same rules; the frontend check only gives instant feedback.
 
 ## Connecting the real Django API
 
@@ -82,7 +82,7 @@ What the frontend expects from the backend, beyond the agreement doc:
 
 - `POST /auth/otp/verify/` returns `{ access, refresh, user, is_new_user }`.
 - **Refunds (pay-first):** when a paid order is `rejected_by_dealer` or `cancelled`, refund it to M-Pesa and then set status `refunded` (keep the earlier status in `status_history`). Orders also carry `cancellation_reason`: `"customer"`, `"dealer_timeout"` (paid order not accepted in time, cancelled by the backend) or `null`. The timeout length is the backend's choice; the demo data uses 3 minutes.
-- **Vendor sign-up:** `POST /vendors/register/` (logged-in user) with `{ shop_name, address, landmark_notes, lat, lng, opening_hours, delivery_radius_km }`. It creates the dealer (shop), switches the user's `role` to `dealer`, and returns `{ user, dealer }`. Reject pins outside Juja. Decide whether new shops go live immediately or wait for admin approval (e.g. after checking their licence); the frontend currently assumes they're live.
+- **Vendor sign-up:** `POST /vendors/register/` (logged-in user) with `{ shop_name, address, landmark_notes, lat, lng, opening_hours, delivery_radius_km }`. It creates the dealer (shop), switches the user's `role` to `dealer`, and returns `{ user, dealer }`. Reject pins outside Kenya. Decide whether new shops go live immediately or wait for admin approval (e.g. after checking their licence); the frontend currently assumes they're live.
 - **Vendor stock (vendors enter their own gas types):**
   - `GET /dealer/shop/` → the vendor's own shop; `PATCH /dealer/shop/` with `{ is_open }` opens/closes it.
   - `GET /dealer/stock/` → `[{ id, product: { id, brand, size_kg, type, ... }, quantity, price_kes }]`.

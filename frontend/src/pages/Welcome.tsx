@@ -32,9 +32,9 @@ export default function Welcome() {
           {/* Branding Gradient strip */}
           <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1" />
           <p className="inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold">
-            <MapPin className="h-3.5 w-3.5" /> Now serving Juja, Kiambu County
+            <MapPin className="h-3.5 w-3.5" /> Delivery &amp; pickup across Kenya
           </p>
-          <h1 className="mt-3 text-[28px] leading-tight font-bold tracking-tight text-balance">Cooking gas to your door in Juja</h1>
+          <h1 className="mt-3 text-[28px] leading-tight font-bold tracking-tight text-balance">Cooking gas, delivered to your door</h1>
           <p className="mt-2 text-white/80">Order a refill or a new cylinder and pay with M-Pesa. Gas shops: get orders from customers near you.</p>
 
           <ul className="mt-5 grid grid-cols-3 gap-2">
