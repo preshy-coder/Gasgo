@@ -33,7 +33,7 @@ export default function OrderDetail() {
   const timedOut = o.cancellation_reason === 'dealer_timeout'
   const refundPending = awaitingRefund(o)
   // Payment is held until the customer confirms they have the gas.
-  const canConfirm = o.status === 'out_for_delivery' || o.status === 'ready_for_pickup'
+  const canConfirm = (o.status === 'out_for_delivery' || o.status === 'ready_for_pickup') && !o.customer_confirmed_at
 
   const reorder = () => {
     cart.clear()
@@ -83,8 +83,8 @@ export default function OrderDetail() {
         )}
 
         {/* Customer confirmed receipt: payment released to the dealer */}
-        {(o.status === 'delivered' || o.status === 'collected') && o.funds_released_at && (
-          <Notice tone="success" icon={<CheckCircle2 className="h-5 w-5" />} title={o.status === 'delivered' ? 'Delivery confirmed' : 'Pickup confirmed'}>
+        {o.customer_confirmed_at && (
+          <Notice tone="success" icon={<CheckCircle2 className="h-5 w-5" />} title={o.type === 'delivery' ? 'Delivery confirmed' : 'Pickup confirmed'}>
             Thanks for confirming. Your payment has been released to {o.dealer.name}.
           </Notice>
         )}

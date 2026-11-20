@@ -31,7 +31,7 @@ With `VITE_USE_MOCK_API=true` in `.env`, the app uses a fake backend that runs i
 - **M-Pesa:** payments succeed after about 4 seconds. A number ending in `0000` fails, so you can test the failure screen.
 - **Reset:** Profile → "Reset demo data"
 
-To test the whole flow, place and pay for an order as a customer from the Gasgo Demo Dealer, log out, then log in as the dealer to accept it and send it out for delivery. Log back in as the customer and tap "I've received my gas": the payment is released and the dealer's screen shows it as delivered.
+To test the whole flow, place and pay for an order as a customer from the Gasgo Demo Dealer, log out, then log in as the dealer to accept it and send it out for delivery. Log back in as the customer and tap "I've received my gas": the payment is released. Then, as the dealer, "Mark as delivered" unlocks and closes the order.
 
 ## Ordering flow on the home screen
 
@@ -95,7 +95,7 @@ What the frontend expects from the backend, beyond the agreement doc:
   - Each dealer has `delivery_fee_kes` (flat KES, set by the vendor: at sign-up in `POST /vendors/register/`, and later with `PATCH /dealer/shop/` `{ delivery_fee_kes }`, 0 = free delivery). Charged on delivery orders only. It replaces the old distance-based fee.
   - `service_fee_kes` is one constant set on the backend (the demo uses KES 50), added to every order, delivery or pickup. Quotes and orders return it: `total_kes = subtotal_kes + delivery_fee_kes + service_fee_kes`.
   - When the customer confirms receipt, the dealer is paid `subtotal_kes + delivery_fee_kes`; Gasgo keeps the service fee.
-- **Payment held until the customer confirms (escrow):** the dealer can only move an order to `out_for_delivery` or `ready_for_pickup`. The customer then taps "I've received my gas" / "I've collected my gas", which calls `POST /orders/{id}/confirm-received/` (customer's own order, only from those two statuses). The backend sets the status to `delivered` / `collected`, releases the payment to the dealer, and sets the new order field `funds_released_at` (ISO time, `null` until then). `POST /dealer/orders/{id}/status/` must refuse `delivered` and `collected`. Decide a fallback for customers who never tap it, e.g. auto-confirm after 24 hours unless they've reported a problem.
+- **Payment held until the customer confirms (escrow):** the dealer moves the order to `out_for_delivery` / `ready_for_pickup` as before. The customer then taps "I've received my gas" / "I've collected my gas", which calls `POST /orders/{id}/confirm-received/` (customer's own order, only from those two statuses, once). The backend sets the new order fields `customer_confirmed_at` and `funds_released_at` (ISO times, `null` until then), releases the payout to the dealer, and leaves the status unchanged. The dealer's "Mark as delivered / collected" button stays locked until then: `POST /dealer/orders/{id}/status/` must refuse `delivered` / `collected` while `customer_confirmed_at` is null. Decide fallbacks: auto-confirm if the customer never taps (e.g. after 24 hours unless they reported a problem), and auto-complete if the dealer never taps after the customer confirmed.
 - `GET /orders/{id}/` also works for the dealer who owns the order (the dealer screens use it).
 - Orders include a `customer: { name, phone }` field for the dealer's view.
 - Dealer endpoints: `GET /dealer/orders/`, `POST /dealer/orders/{id}/accept/`, `POST /dealer/orders/{id}/reject/` (`{ reason }`), `POST /dealer/orders/{id}/status/` (`{ status }`).
@@ -162,7 +162,7 @@ Customers only see brands and sizes that some open shop has in stock, priced "fr
 | `/orders/:id/pay` | M-Pesa STK Push: waiting, success, failure, timeout |
 | `/orders/:id` | Live tracking (refreshes every 3 s); "I've received my gas" button releases the payment to the dealer |
 | `/orders`, `/help`, `/profile` | History, FAQ + gas safety, account |
-| `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, send out / mark ready (the customer confirms delivery) |
+| `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, send out / mark ready, mark delivered (unlocks after the customer confirms) |
 | `/dealer/stock` | Vendor stock: gas types, prices, stock levels, open/closed |
 
 ## Before launch

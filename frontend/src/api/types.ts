@@ -48,7 +48,7 @@ export interface GasgoApi {
   createOrder(req: CreateOrderRequest): Promise<Order>
   payOrder(id: number, phone: string): Promise<PayResponse>
   cancelOrder(id: number): Promise<Order>
-  /** Customer confirms they have the gas: order becomes delivered / collected and the payment is released to the dealer. */
+  /** Customer confirms they have the gas: the payment is released to the dealer, who can then mark the order delivered / collected. */
   confirmReceived(id: number): Promise<Order>
 
   // Dealer

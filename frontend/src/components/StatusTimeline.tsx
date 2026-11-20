@@ -31,6 +31,13 @@ export function StatusTimeline({ order, forDealer }: { order: Order; forDealer?:
   // For a refunded order, show what stopped it (rejected / cancelled) and then the refund.
   const stoppedBy = order.status === 'refunded' ? ([...order.status_history].reverse().find((h) => STOPPED.includes(h.status))?.status ?? null) : failed ? order.status : null
   const reachedAt = (s: OrderStatus) => [...order.status_history].reverse().find((h) => h.status === s)?.at
+  const confirmed = !!order.customer_confirmed_at
+  const hint = (step: OrderStatus) => {
+    if (confirmed && (step === 'out_for_delivery' || step === 'ready_for_pickup')) {
+      return forDealer ? `Customer confirmed. Mark it as ${step === 'out_for_delivery' ? 'delivered' : 'collected'}.` : 'You confirmed you have your gas. The dealer will close the order.'
+    }
+    return (forDealer ? DEALER_HINT : STEP_HINT)[step]
+  }
   const currentIndex = failed
     ? Math.max(...steps.map((s, i) => (reachedAt(s) ? i : -1)))
     : steps.indexOf(order.status)
@@ -61,9 +68,7 @@ export function StatusTimeline({ order, forDealer }: { order: Order; forDealer?:
                 <p className={`font-medium ${done ? 'text-ink' : 'text-slate-400'}`}>{STEP_LABEL[step] ?? STATUS_LABEL[step]}</p>
                 {at && <span className="text-xs text-slate-500">{formatTime(at)}</span>}
               </div>
-              {isCurrent && (forDealer ? DEALER_HINT : STEP_HINT)[step] && (
-                <p className="text-sm text-slate-500">{(forDealer ? DEALER_HINT : STEP_HINT)[step]}</p>
-              )}
+              {isCurrent && hint(step) && <p className="text-sm text-slate-500">{hint(step)}</p>}
             </div>
           </li>
         )

@@ -195,7 +195,7 @@ function settlePayments(db: MockDb) {
 function publicOrder(o: MockOrder): Order {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { customer_id, payment_started_at, payment_phone, refund_due_at, ...rest } = o
-  return structuredClone({ ...rest, service_fee_kes: rest.service_fee_kes ?? 0, cancellation_reason: rest.cancellation_reason ?? null, funds_released_at: rest.funds_released_at ?? null })
+  return structuredClone({ ...rest, service_fee_kes: rest.service_fee_kes ?? 0, cancellation_reason: rest.cancellation_reason ?? null, funds_released_at: rest.funds_released_at ?? null, customer_confirmed_at: rest.customer_confirmed_at ?? null })
 }
 
 function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { dealer: Dealer; address: Address | null } {
@@ -243,7 +243,9 @@ function dealerOrder(db: MockDb, id: number): MockOrder {
 
 const ALLOWED_DEALER_MOVES: Partial<Record<OrderStatus, OrderStatus[]>> = {
   accepted: ['out_for_delivery', 'ready_for_pickup'],
-  // delivered / collected are set by the customer confirming receipt, not by the dealer.
+  // Only allowed once the customer has confirmed they received the gas (see dealerSetStatus).
+  out_for_delivery: ['delivered'],
+  ready_for_pickup: ['collected'],
 }
 
 function myShop(db: MockDb): Dealer {
@@ -428,6 +430,7 @@ export const mockApi: GasgoApi = {
       total_kes: q.total_kes,
       mpesa_receipt: null,
       cancellation_reason: null,
+      customer_confirmed_at: null,
       funds_released_at: null,
       refund_due_at: null,
       status_history: [{ status: 'placed', at: now() }],
@@ -464,7 +467,8 @@ export const mockApi: GasgoApi = {
     if (order.status !== 'out_for_delivery' && order.status !== 'ready_for_pickup') {
       throw new ApiError('You can confirm once the dealer has sent your gas or it is ready for pickup.', 400, 'cannot_confirm')
     }
-    setStatus(order, order.status === 'out_for_delivery' ? 'delivered' : 'collected')
+    if (order.customer_confirmed_at) throw new ApiError('You have already confirmed this order.', 400, 'already_confirmed')
+    order.customer_confirmed_at = now()
     order.funds_released_at = now()
     save(db)
     return publicOrder(order)
@@ -616,6 +620,9 @@ export const mockApi: GasgoApi = {
     const order = dealerOrder(db, id)
     if (!ALLOWED_DEALER_MOVES[order.status]?.includes(status)) {
       throw new ApiError(`Can't move an order from "${order.status}" to "${status}".`, 400, 'invalid_status')
+    }
+    if ((status === 'delivered' || status === 'collected') && !order.customer_confirmed_at) {
+      throw new ApiError('The customer hasn’t confirmed they received the gas yet.', 400, 'not_confirmed')
     }
     setStatus(order, status)
     save(db)

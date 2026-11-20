@@ -164,10 +164,11 @@ export interface Order {
   mpesa_receipt: string | null
   cancellation_reason: CancellationReason | null
   /**
-   * When the customer's payment was released to the dealer (null while it is still held).
-   * The money is held from payment until the customer confirms they received the gas
-   * (POST /orders/{id}/confirm-received/), which also moves the order to delivered / collected.
+   * When the customer confirmed they received the gas (POST /orders/{id}/confirm-received/), null until then.
+   * Only after this can the dealer mark the order delivered / collected.
    */
+  customer_confirmed_at: string | null
+  /** When the payment was released to the dealer (null while held). Set when the customer confirms. */
   funds_released_at: string | null
   status_history: StatusChange[]
   created_at: string

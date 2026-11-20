@@ -64,9 +64,12 @@ export default function DealerOrders() {
                 <p className="font-semibold">{o.order_number}</p>
                 <StatusBadge status={o.status} />
               </div>
-              {(o.status === 'out_for_delivery' || o.status === 'ready_for_pickup') && (
-                <p className="text-xs font-medium text-amber-300">Waiting for customer to confirm</p>
-              )}
+              {(o.status === 'out_for_delivery' || o.status === 'ready_for_pickup') &&
+                (o.customer_confirmed_at ? (
+                  <p className="text-xs font-medium text-green-300">Customer confirmed · tap to mark as {o.status === 'out_for_delivery' ? 'delivered' : 'collected'}</p>
+                ) : (
+                  <p className="text-xs font-medium text-amber-300">Waiting for customer to confirm</p>
+                ))}
               {(o.status === 'delivered' || o.status === 'collected') && (
                 <p className="text-xs font-medium text-green-300">Confirmed by customer · payment released</p>
               )}
