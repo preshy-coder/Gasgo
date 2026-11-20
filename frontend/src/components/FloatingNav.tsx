@@ -212,12 +212,12 @@ export function FloatingNav() {
               className="relative flex flex-1 flex-col items-center justify-center gap-0.5 text-white [filter:drop-shadow(0_1px_1.5px_rgba(0,0,0,0.45))]"
             >
               <span className={`relative transition-transform duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${active ? 'scale-110' : ''}`}>
-                <Icon className={`h-5 w-5 ${active ? 'fill-white/30' : ''}`} strokeWidth={2.1} />
+                <Icon className="h-5 w-5 text-white" strokeWidth={active ? 2.4 : 2.1} />
                 {t.to === '/orders' && hasActiveOrder && (
                   <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-brand-500 ring-1 ring-white/80" aria-label="Order in progress" />
                 )}
               </span>
-              <span className={`text-[11px] leading-tight font-semibold transition-opacity duration-300 ${active ? 'opacity-100' : 'opacity-90'}`}>
+              <span className="text-[11px] leading-tight font-semibold text-white">
                 {t.label}
               </span>
             </NavLink>
