@@ -9,6 +9,7 @@ import { GLASS, GLASS_FLAT, GlassPage, GlassSpinner } from '../components/glass'
 import { GlassSelect } from '../components/GlassSelect'
 import { Button, ErrorBox, StatusBadge } from '../components/ui'
 import { useAddresses, useOrders, useProducts } from '../hooks/queries'
+import { GAS_SIZES, sizeLabel } from '../lib/catalog'
 import { formatKes, isActiveOrder, productName } from '../lib/format'
 import { useAuth } from '../store/auth'
 import { cartCount, useCart } from '../store/cart'
@@ -31,8 +32,25 @@ export default function Home() {
     () => items.reduce((sum, i) => sum + (products.data?.find((p) => p.id === i.product_id)?.price_kes ?? 0) * i.quantity, 0),
     [items, products.data],
   )
-  const brands = useMemo(() => [...new Set(products.data?.map((p) => p.brand) ?? [])], [products.data])
+  // Brands some open shop has in stock, with the cheapest price for the chosen type.
+  const brands = useMemo(() => {
+    const from = new Map<string, number>()
+    for (const p of products.data ?? []) {
+      if (p.type !== purchaseType) continue
+      from.set(p.brand, Math.min(from.get(p.brand) ?? Infinity, p.price_kes))
+    }
+    const all = [...new Set(products.data?.map((p) => p.brand) ?? [])].sort((a, b) => a.localeCompare(b))
+    return all.map((b) => ({ brand: b, from: from.get(b) }))
+  }, [products.data, purchaseType])
   const visible = products.data?.filter((p) => p.brand === brand && p.type === purchaseType).sort((a, b) => a.size_kg - b.size_kg) ?? []
+  // All sizes are listed; the ones no nearby shop has are shown greyed out.
+  const sizeRows =
+    brand && visible.length
+      ? GAS_SIZES.map((kg) => ({
+          kg,
+          product: visible.find((p) => p.size_kg === kg),
+        }))
+      : []
   const otherLines = items.filter((i) => !visible.some((p) => p.id === i.product_id)).reduce((n, i) => n + i.quantity, 0)
 
   const goNext = () => {
@@ -42,7 +60,6 @@ export default function Home() {
 
   return (
     <GlassPage>
-
       <div className="relative flex-1 space-y-4 px-4 pt-5 pb-6">
         {/* Greeting */}
         <div className="flex items-center gap-3">
@@ -98,10 +115,17 @@ export default function Home() {
           <GlassSelect
             tone="dark"
             label="Gas brand"
-            placeholder="Choose your gas brand"
+            placeholder="Search or choose your gas brand"
+            searchable
+            searchPlaceholder="Search brands, e.g. K-Gas"
             value={brand}
             onChange={setBrand}
-            options={brands.map((b, i) => ({ value: b, label: b, icon: <BrandDot brand={b} index={i} /> }))}
+            options={brands.map((b, i) => ({
+              value: b.brand,
+              label: b.brand,
+              description: b.from ? `From ${formatKes(b.from)}` : `No ${purchaseType === 'refill' ? 'refills' : 'new cylinders'} in stock`,
+              icon: <BrandDot brand={b.brand} index={i} />,
+            }))}
           />
           <GlassSelect<ProductType>
             tone="dark"
@@ -109,8 +133,18 @@ export default function Home() {
             value={purchaseType}
             onChange={setPurchaseType}
             options={[
-              { value: 'refill', label: 'Refill', description: 'Swap your empty cylinder for a full one', icon: <RefreshCw className="h-5 w-5 text-brand-300" /> },
-              { value: 'new_cylinder', label: 'New purchase', description: 'Buy a new cylinder filled with gas', icon: <PackagePlus className="h-5 w-5 text-brand-300" /> },
+              {
+                value: 'refill',
+                label: 'Refill',
+                description: 'Swap your empty cylinder for a full one',
+                icon: <RefreshCw className="h-5 w-5 text-brand-300" />,
+              },
+              {
+                value: 'new_cylinder',
+                label: 'New purchase',
+                description: 'Buy a new cylinder filled with gas',
+                icon: <PackagePlus className="h-5 w-5 text-brand-300" />,
+              },
             ]}
           />
         </section>
@@ -120,7 +154,7 @@ export default function Home() {
           <p className="mb-3 text-xs text-white/60">
             {purchaseType === 'refill'
               ? 'Hand over your empty cylinder of the same brand and size.'
-              : 'Includes the cylinder and the gas. Grill and burner not included.'}
+              : 'Includes the cylinder and the gas. A grill or regulator can be added at checkout.'}
           </p>
 
           {products.isPending && <GlassSpinner />}
@@ -141,23 +175,42 @@ export default function Home() {
             </p>
           )}
           <ul className="space-y-2.5">
-            {visible.map((p) => (
-              <li key={p.id} className={`${GLASS} flex items-center gap-3 p-3`}>
-                <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/85">
-                  {p.image_url ? (
-                    <img src={p.image_url} alt="" className="h-14 w-12 object-contain" />
-                  ) : (
-                    <CylinderIcon sizeKg={p.size_kg} className="h-14 w-12" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="font-semibold">{productName(p)}</p>
-                  <p className="text-sm text-white/70">from {formatKes(p.price_kes)}</p>
-                </div>
-                <GlassStepper value={qty(p.id)} onChange={(v) => setQuantity(p.id, v)} max={5} />
-              </li>
-            ))}
+            {sizeRows.map(({ kg, product: p }) =>
+              !p ? (
+                <li key={kg} className="flex items-center gap-3 rounded-2xl border border-dashed border-white/20 bg-white/5 p-3 opacity-70">
+                  <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/20">
+                    <CylinderIcon sizeKg={kg} className="h-14 w-12 opacity-60" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-white/80">
+                      {brand} {sizeLabel(kg)}
+                    </p>
+                    <p className="text-sm text-white/50">Not in stock nearby</p>
+                  </div>
+                </li>
+              ) : (
+                <li key={p.id} className={`${GLASS} flex items-center gap-3 p-3`}>
+                  <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/85">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt="" className="h-14 w-12 object-contain" />
+                    ) : (
+                      <CylinderIcon sizeKg={p.size_kg} className="h-14 w-12" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold">{productName(p)}</p>
+                    <p className="text-sm text-white/70">from {formatKes(p.price_kes)}</p>
+                  </div>
+                  <GlassStepper value={qty(p.id)} onChange={(v) => setQuantity(p.id, v)} max={5} />
+                </li>
+              ),
+            )}
           </ul>
+          {brand && visible.length > 0 && (
+            <p className="mt-3 text-xs text-white/60">
+              Next you’ll see the shops that have it and each shop’s price. You can add a regulator, hose pipe, lighter or grill at checkout.
+            </p>
+          )}
           {otherLines > 0 && (
             <p className="mt-3 text-xs text-white/60">
               + {otherLines} other item{otherLines > 1 ? 's' : ''} already in your order.
@@ -228,7 +281,10 @@ function BrandDot({ brand, index }: { brand: string; index: number }) {
   const color = BRAND_COLORS[index % BRAND_COLORS.length]
   return (
     <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white ${color}`} aria-hidden>
-      {brand.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}
+      {brand
+        .replace(/[^A-Za-z]/g, '')
+        .slice(0, 2)
+        .toUpperCase()}
     </span>
   )
 }

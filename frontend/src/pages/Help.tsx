@@ -10,7 +10,11 @@ const FAQ = [
   },
   {
     q: 'What fees do I pay?',
-    a: 'Three parts: the gas, at the shop’s own price; the shop’s delivery fee (delivery orders only, each shop sets its own); and a small fixed Gasgo service fee. You see all three before you pay.',
+    a: 'The gas and any equipment, at the shop’s own prices; the shop’s delivery fee (delivery orders only, each shop sets its own); and a small fixed Gasgo service fee. You see all three before you pay.',
+  },
+  {
+    q: 'Can I buy a regulator, hose pipe, lighter or grill?',
+    a: 'Yes. After you choose a shop, checkout shows the equipment that shop sells and its prices. Add what you need (for a hose pipe, pick the length) and it comes with your gas.',
   },
   { q: 'How do I pay?', a: "With M-Pesa. After you place the order, you'll get a prompt on your phone. Enter your PIN to pay." },
   {

@@ -36,11 +36,15 @@ To test the whole flow, place and pay for an order as a customer from the Gasgo 
 ## Ordering flow on the home screen
 
 1. **Delivery or pickup**
-2. **Gas brand** – glass dropdown (K-Gas, Total, Pro Gas, Afrigas, Hashi Gas, Rubis in demo data; real brands come from `/products/`)
+2. **Gas brand** – searchable glass dropdown, listing the brands some open shop has in stock (from `/products/`), with the lowest price
 3. **Refill or new purchase** – glass dropdown
-4. **Size and quantity** – 6 kg / 13 kg cards with + and −
+4. **Size and quantity** – all six sizes (3, 6, 13, 22.5, 35, 50 kg); sizes no nearby shop has are greyed out
+5. **Choose a shop** – every shop that has it, with that shop's price, sortable by *Nearest* or *Cheapest*
+6. **Checkout** – add gas equipment from that shop (regulator, hose pipe with length, lighter, grill)
 
-The dropdown is a reusable component: `src/components/GlassSelect.tsx`.
+The dropdown is a reusable component: `src/components/GlassSelect.tsx` (pass `searchable` for a search box).
+
+The fixed lists live in `src/lib/catalog.ts`: the 30 gas brands, the six cylinder sizes, the four kinds of equipment and the hose lengths. The backend must accept exactly the same values.
 
 ## Colours
 
@@ -86,7 +90,7 @@ What the frontend expects from the backend, beyond the agreement doc:
 - **Vendor stock (vendors enter their own gas types):**
   - `GET /dealer/shop/` → the vendor's own shop; `PATCH /dealer/shop/` with `{ is_open }` opens/closes it.
   - `GET /dealer/stock/` → `[{ id, product: { id, brand, size_kg, type, ... }, quantity, price_kes }]`.
-  - `POST /dealer/stock/` with `{ brand, size_kg, type, price_kes, quantity }`. The brand is free text typed by the vendor; match it to an existing catalogue entry ignoring case, spaces and dashes ("kgas" = "K-Gas"), or create a new one. Refuse duplicates in the same shop.
+  - `POST /dealer/stock/` with `{ brand, size_kg, type, price_kes, quantity }`. The brand and size come from the fixed lists (see "Fixed gas list" below). Refuse duplicates in the same shop.
   - `PATCH /dealer/stock/{id}/` with `{ quantity }` and/or `{ price_kes }`; `DELETE /dealer/stock/{id}/`.
   - Each dealer's `stock` entries now include the shop's own `price_kes`. Quotes and orders must use **that shop's** price.
   - `GET /products/` should return only gas types that at least one **open** shop has in stock, with `price_kes` = the lowest of those shop prices (shown to customers as "from KES …").
@@ -96,6 +100,13 @@ What the frontend expects from the backend, beyond the agreement doc:
   - `service_fee_kes` is one constant set on the backend (the demo uses KES 50), added to every order, delivery or pickup. Quotes and orders return it: `total_kes = subtotal_kes + delivery_fee_kes + service_fee_kes`.
   - When the customer confirms receipt, the dealer is paid `subtotal_kes + delivery_fee_kes`; Gasgo keeps the service fee.
 - **Payment held until the customer confirms (escrow):** the dealer moves the order to `out_for_delivery` / `ready_for_pickup` as before. The customer then taps "I've received my gas" / "I've collected my gas", which calls `POST /orders/{id}/confirm-received/` (customer's own order, only from those two statuses, once). The backend sets the new order fields `customer_confirmed_at` and `funds_released_at` (ISO times, `null` until then), releases the payout to the dealer, and leaves the status unchanged. The dealer's "Mark as delivered / collected" button stays locked until then: `POST /dealer/orders/{id}/status/` must refuse `delivered` / `collected` while `customer_confirmed_at` is null. Decide fallbacks: auto-confirm if the customer never taps (e.g. after 24 hours unless they reported a problem), and auto-complete if the dealer never taps after the customer confirmed.
+- **Fixed gas list:** `POST /dealer/stock/` takes a `brand` from the 30 brands in `src/lib/catalog.ts` (same spelling) and a `size_kg` of 3, 6, 13, 22.5, 35 or 50. Refuse anything else. Vendors no longer type brand names.
+- **Gas equipment (vendor Market):** each dealer has `accessories: [{ kind, price_kes, in_stock }]`, where `kind` is `regulator`, `hose`, `lighter` or `grill`. For `hose`, `price_kes` is per metre.
+  - `PUT /dealer/accessories/{kind}/` with `{ price_kes, in_stock }` adds or updates an item, and `DELETE /dealer/accessories/{kind}/` removes it. Both return the shop.
+  - Quotes and orders take an optional `accessories: [{ kind, quantity, length_m }]` (`length_m` only for hose, 0.5–20). Refuse items the shop doesn't have in stock.
+  - Quotes and orders return `accessories_kes`, and orders return `accessories: [{ kind, name, quantity, length_m, unit_price_kes, total_kes }]`. Hose `unit_price_kes` = price per metre × length.
+  - `total_kes = subtotal_kes + accessories_kes + delivery_fee_kes + service_fee_kes`, and the dealer is paid `subtotal_kes + accessories_kes + delivery_fee_kes`.
+- **Vendor performance:** `GET /dealer/performance/?days=7|30|90` returns `{ days, sales_kes, previous_sales_kes, orders, cylinders, gas_kes, accessories_kes, delivery_fees_kes, daily: [{ date, sales_kes, orders }], top_items: [{ name, quantity, sales_kes }] }`. Count only orders the customer confirmed (by `customer_confirmed_at`, Kenya time). `sales_kes` is the dealer's earnings (gas + equipment + delivery fees, no service fee), `daily` has one entry per day including zero days, and `top_items` has the top 5 by sales.
 - `GET /orders/{id}/` also works for the dealer who owns the order (the dealer screens use it).
 - Orders include a `customer: { name, phone }` field for the dealer's view.
 - Dealer endpoints: `GET /dealer/orders/`, `POST /dealer/orders/{id}/accept/`, `POST /dealer/orders/{id}/reject/` (`{ reason }`), `POST /dealer/orders/{id}/status/` (`{ status }`).
@@ -137,11 +148,16 @@ The landing page offers two ways in:
 
 An existing vendor who taps "I sell gas" goes straight to their dealer screens. A customer who taps it can register a shop on the same phone number.
 
+## Vendor market and performance
+
+- **Market** (`/dealer/market`): the vendor switches on the equipment they sell (gas regulator, gas hose pipe, gas lighter, gas grill), sets a price (per metre for hose pipes) and marks items in or out of stock. Customers see these at checkout for that shop.
+- **Performance** (`/dealer/performance`): sales for the last 7, 30 or 90 days, with the change from the period before, number of orders and cylinders, average order, a sales-per-day (or per-week) bar chart you can tap, where the money came from (gas, equipment, delivery fees) and the best sellers. Only orders the customer confirmed count. The demo dealer has about six months of made-up sales so the page has data.
+
 ## Vendor stock
 
 Vendors manage their own gas list on **Stock** (`/dealer/stock`, next to **Orders**):
 
-- **Add a gas type:** brand (typed by the vendor, with suggestions from brands other shops use), cylinder size (3/6/13/22/50 kg or any other), refill or new cylinder, price and quantity in stock.
+- **Add a gas type:** brand (searched and picked from the fixed list of 30, so nothing is typed), cylinder size (3, 6, 13, 22.5, 35 or 50 kg), refill or new cylinder, then the vendor enters only the price and the quantity in stock.
 - **Stock levels:** each item shows *In stock*, *Low* (3 or fewer) or *Out of stock*, with +/− buttons. The price can be edited in place, and items can be removed.
 - **Open / closed** switch for the shop.
 - **Delivery fee:** the shop's own flat charge for delivery orders, separate from gas prices (also asked at sign-up). Gasgo's fixed service fee is added for the customer on top.
@@ -163,7 +179,9 @@ Customers only see brands and sizes that some open shop has in stock, priced "fr
 | `/orders/:id` | Live tracking (refreshes every 3 s); "I've received my gas" button releases the payment to the dealer |
 | `/orders`, `/help`, `/profile` | History, FAQ + gas safety, account |
 | `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, send out / mark ready, mark delivered (unlocks after the customer confirms) |
-| `/dealer/stock` | Vendor stock: gas types, prices, stock levels, open/closed |
+| `/dealer/stock` | Vendor stock: gas types, prices, stock levels, open/closed, delivery fee |
+| `/dealer/market` | Vendor equipment: regulators, hose pipes, lighters, grills and their prices |
+| `/dealer/performance` | Vendor sales performance over 7 / 30 / 90 days |
 
 ## Before launch
 

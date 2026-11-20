@@ -17,6 +17,7 @@ export default function Dealers() {
   const address = addresses.data?.find((a) => a.id === addressId)
 
   const [here, setHere] = useState<LatLng | null>(null)
+  const [sortBy, setSortBy] = useState<'distance' | 'price'>('distance')
   const [locating, setLocating] = useState(orderType === 'pickup')
   useEffect(() => {
     if (orderType !== 'pickup') return
@@ -42,11 +43,28 @@ export default function Dealers() {
     return { ok: true }
   }
 
+  // Unit price at this shop, e.g. "KES 2,900 each" (or the item count for mixed carts).
+  const priceDetail = (d: Dealer) => {
+    if (items.length === 1) {
+      const st = d.stock.find((x) => x.product_id === items[0].product_id)
+      return st ? `${formatKes(st.price_kes)} each · gas only` : ''
+    }
+    return 'gas only'
+  }
+
   // This shop's price for the whole cart (each shop sets its own prices).
   const cartPrice = (d: Dealer) =>
     items.reduce((sum, i) => sum + (d.stock.find((st) => st.product_id === i.product_id)?.price_kes ?? 0) * i.quantity, 0)
 
-  const sorted = [...(dealers.data ?? [])].sort((a, b) => Number(availability(b).ok) - Number(availability(a).ok))
+  // Shops that can take the order first, then by distance or by price (the customer chooses).
+  const sorted = [...(dealers.data ?? [])].sort(
+    (a, b) =>
+      Number(availability(b).ok) - Number(availability(a).ok) ||
+      (sortBy === 'price' ? cartPrice(a) - cartPrice(b) : (a.distance_km ?? 0) - (b.distance_km ?? 0)),
+  )
+  const okCount = sorted.filter((d) => availability(d).ok).length
+  const prices = sorted.filter((d) => availability(d).ok).map(cartPrice)
+  const cheapest = prices.length ? Math.min(...prices) : null
 
   return (
     <div className="flex min-h-full flex-col">
@@ -61,6 +79,26 @@ export default function Dealers() {
           <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
             Turn on location to see the dealers closest to you.
           </p>
+        )}
+
+        {dealers.isSuccess && !locating && okCount > 0 && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-slate-600">
+              {okCount} shop{okCount === 1 ? '' : 's'} {okCount === 1 ? 'has' : 'have'} your gas
+            </p>
+            <div className="flex rounded-full bg-slate-100 p-0.5 text-xs font-semibold" role="group" aria-label="Sort shops">
+              {(['distance', 'price'] as const).map((k) => (
+                <button
+                  key={k}
+                  aria-pressed={sortBy === k}
+                  onClick={() => setSortBy(k)}
+                  className={`rounded-full px-3 py-1.5 ${sortBy === k ? 'bg-white text-ink shadow-sm' : 'text-slate-500'}`}
+                >
+                  {k === 'distance' ? 'Nearest' : 'Cheapest'}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {(locating || dealers.isPending) && <Spinner label="Finding dealers near you…" />}
@@ -98,8 +136,13 @@ export default function Dealers() {
                   </p>
                   {a.ok ? (
                     <p className="mt-2 flex items-center justify-between gap-2 text-sm font-medium text-green-700">
-                      <span>In stock · tap to continue</span>
-                      <span className="font-semibold text-ink tabular-nums">{formatKes(cartPrice(d))}</span>
+                      <span>
+                        In stock{okCount > 1 && cartPrice(d) === cheapest ? <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs">Lowest price</span> : null}
+                      </span>
+                      <span className="text-right">
+                        <span className="block font-semibold text-ink tabular-nums">{formatKes(cartPrice(d))}</span>
+                        <span className="block text-[11px] font-normal text-slate-500">{priceDetail(d)}</span>
+                      </span>
                     </p>
                   ) : (
                     <p className="mt-2 text-sm font-medium text-red-600">{a.reason}</p>

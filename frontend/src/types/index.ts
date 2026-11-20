@@ -76,7 +76,19 @@ export interface Dealer {
   delivery_fee_kes: number
   is_open: boolean
   stock: DealerStock[]
+  /** Gas equipment the shop sells (the vendor's Market). */
+  accessories: DealerAccessory[]
   distance_km?: number
+}
+
+/** Gas equipment a shop can sell with cylinders. Fixed list (see src/lib/catalog.ts). */
+export type AccessoryKind = 'regulator' | 'hose' | 'lighter' | 'grill'
+
+export interface DealerAccessory {
+  kind: AccessoryKind
+  /** For 'hose' this is the price per metre. */
+  price_kes: number
+  in_stock: boolean
 }
 
 /** What a vendor (gas shop) fills in when joining Gasgo. */
@@ -147,16 +159,28 @@ export interface StatusChange {
   at: string // ISO 8601
 }
 
+/** An accessory line on an order, priced by the shop at the time of ordering. */
+export interface OrderAccessory {
+  kind: AccessoryKind
+  name: string
+  quantity: number
+  length_m: number | null // hose only
+  unit_price_kes: number // per piece (for a hose: price per metre × length)
+  total_kes: number
+}
+
 export interface Order {
   id: number
   order_number: string
   type: OrderType
   status: OrderStatus
   items: OrderItem[]
+  accessories: OrderAccessory[]
   dealer: Dealer
   address: Address | null // null for pickup
   customer?: { name: string; phone: string }
-  subtotal_kes: number
+  subtotal_kes: number // gas only
+  accessories_kes: number
   delivery_fee_kes: number
   /** Gasgo's fixed service fee. Kept by Gasgo, not paid out to the dealer. */
   service_fee_kes: number
@@ -179,18 +203,28 @@ export interface CartLine {
   quantity: number
 }
 
+/** An accessory in the customer's cart. length_m is required for 'hose' (and ignored otherwise). */
+export interface AccessoryLine {
+  kind: AccessoryKind
+  quantity: number
+  length_m?: number
+}
+
 export interface QuoteRequest {
   type: OrderType
   dealer_id: number
   address_id?: number
   items: CartLine[]
+  /** Optional equipment from the same shop. */
+  accessories?: AccessoryLine[]
 }
 
 export interface Quote {
   subtotal_kes: number // gas, at the shop's prices
+  accessories_kes: number // equipment from the same shop (0 if none)
   delivery_fee_kes: number // the shop's delivery fee (0 for pickup)
   service_fee_kes: number // Gasgo's fixed service fee, the same on every order
-  total_kes: number // subtotal + delivery fee + service fee
+  total_kes: number // subtotal + accessories + delivery fee + service fee
 }
 
 export type CreateOrderRequest = QuoteRequest
@@ -210,4 +244,22 @@ export interface ApiErrorBody {
   error: string
   code?: string
   field_errors?: Record<string, string[]>
+}
+
+/** Vendor sales performance for the last `days` days (GET /dealer/performance/?days=). Only orders the customer confirmed count. */
+export interface DealerPerformance {
+  days: number
+  /** What the shop earned: gas + accessories + delivery fees (Gasgo's service fee excluded). */
+  sales_kes: number
+  /** The same figure for the `days` before that, to show the change. */
+  previous_sales_kes: number
+  orders: number
+  cylinders: number
+  gas_kes: number
+  accessories_kes: number
+  delivery_fees_kes: number
+  /** One entry per day, oldest first, including days with no sales. date = YYYY-MM-DD (Kenya time). */
+  daily: { date: string; sales_kes: number; orders: number }[]
+  /** Best sellers by sales, largest first (gas types and accessories). */
+  top_items: { name: string; quantity: number; sales_kes: number }[]
 }

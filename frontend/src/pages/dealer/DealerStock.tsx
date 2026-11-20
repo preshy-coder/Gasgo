@@ -6,15 +6,16 @@ import { Bike, Minus, PackagePlus, Plus, Store, Trash2, X } from 'lucide-react'
 import { errorMessage } from '../../api'
 import { CylinderIcon } from '../../components/CylinderIcon'
 import { DealerShell } from '../../components/DealerShell'
-import { GLASS, GLASS_INPUT, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
+import { GLASS, GLASS_FLAT, GLASS_INPUT, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
+import { GlassSelect } from '../../components/GlassSelect'
+import { GAS_BRANDS, GAS_SIZES, sizeLabel } from '../../lib/catalog'
 import { Button } from '../../components/ui'
-import { useAddStock, useMyShop, useMyStock, useProducts, useRemoveStock, useSetShopOpen, useUpdateShop, useUpdateStock } from '../../hooks/queries'
+import { useAddStock, useMyShop, useMyStock, useRemoveStock, useSetShopOpen, useUpdateShop, useUpdateStock } from '../../hooks/queries'
 import { formatKes } from '../../lib/format'
 import type { ProductType, StockItem } from '../../types'
 
 /** At or below this many cylinders, an item is flagged "Low". */
 const LOW_STOCK = 3
-const SIZES = [3, 6, 13, 22, 50]
 
 export default function DealerStock() {
   const isNewShop = useSearchParams()[0].get('new') === '1'
@@ -43,14 +44,18 @@ export default function DealerStock() {
           <div className={`${GLASS} relative overflow-hidden p-4`}>
             <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1" />
             <p className="font-semibold">Your shop is registered 🎉</p>
-            <p className="mt-1 text-sm text-white/70">Add the gas types you sell, with prices and how many you have. Customers can order as soon as you have stock.</p>
+            <p className="mt-1 text-sm text-white/70">
+              Add the gas types you sell, with prices and how many you have. Customers can order as soon as you have stock.
+            </p>
           </div>
         )}
 
         {/* Open / closed */}
         {shop.data && (
           <div className={`${GLASS} flex items-center gap-3 p-4`}>
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${shop.data.is_open ? 'border-green-400/40 bg-green-500/15 text-green-300' : 'border-white/20 bg-white/10 text-white/50'}`}>
+            <span
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${shop.data.is_open ? 'border-green-400/40 bg-green-500/15 text-green-300' : 'border-white/20 bg-white/10 text-white/50'}`}
+            >
               <Store className="h-5 w-5" />
             </span>
             <div className="min-w-0 flex-1">
@@ -65,7 +70,9 @@ export default function DealerStock() {
               onClick={() => setOpen.mutate(!shop.data.is_open)}
               className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${shop.data.is_open ? 'border-transparent bg-green-500' : 'border-white/25 bg-white/15'}`}
             >
-              <span className={`absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow transition-all ${shop.data.is_open ? 'left-[23px]' : 'left-0.5'}`} />
+              <span
+                className={`absolute top-0.5 h-[22px] w-[22px] rounded-full bg-white shadow transition-all ${shop.data.is_open ? 'left-[23px]' : 'left-0.5'}`}
+              />
             </button>
           </div>
         )}
@@ -96,11 +103,7 @@ export default function DealerStock() {
         {stock.isPending && <GlassSpinner />}
         {stock.isError && <GlassError message={errorMessage(stock.error)} onRetry={() => stock.refetch()} />}
         {stock.isSuccess && items.length === 0 && !adding && (
-          <GlassEmpty
-            icon={<PackagePlus className="h-6 w-6" />}
-            title="No gas listed yet"
-            text="Add each brand and size you sell, e.g. K-Gas 6 kg refill."
-          />
+          <GlassEmpty icon={<PackagePlus className="h-6 w-6" />} title="No gas listed yet" text="Add each brand and size you sell, e.g. K-Gas 6 kg refill." />
         )}
 
         {groups.map(([brand, list]) => (
@@ -158,8 +161,8 @@ function DeliveryFeeCard({ fee }: { fee: number }) {
         </label>
       </div>
       <p className="mt-2.5 text-xs text-white/50">
-        Customers pay your gas prices plus this fee for delivery (nothing for pickup). Gasgo’s service fee is added on top for the customer and doesn’t come out of
-        your money.
+        Customers pay your gas prices plus this fee for delivery (nothing for pickup). Gasgo’s service fee is added on top for the customer and doesn’t come out
+        of your money.
       </p>
       {saved && !update.isPending && <p className="mt-1.5 text-xs font-medium text-green-300">Saved. New delivery orders use {formatKes(Number(value))}.</p>}
       {update.isError && <p className="mt-1.5 text-xs text-red-300">{errorMessage(update.error)}</p>}
@@ -272,31 +275,34 @@ function StockRow({ item }: { item: StockItem }) {
 
 function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: string[] }) {
   const add = useAddStock()
-  const catalogue = useProducts()
-  const [brand, setBrand] = useState('')
+  const [brand, setBrand] = useState<string | null>(null)
   const [size, setSize] = useState<number | null>(null)
-  const [customSize, setCustomSize] = useState('')
   const [type, setType] = useState<ProductType>('refill')
   const [price, setPrice] = useState('')
   const [qty, setQty] = useState('')
   const [error, setError] = useState('')
 
-  // Brand suggestions: brands other shops already list, plus your own.
-  const suggestions = useMemo(
-    () => [...new Set([...(catalogue.data?.map((p) => p.brand) ?? []), ...ownBrands])].sort(),
-    [catalogue.data, ownBrands],
+  // Brands the shop already sells come first, then the rest of the list A–Z.
+  const brandOptions = useMemo(
+    () => [...GAS_BRANDS].sort((a, b) => Number(ownBrands.includes(b)) - Number(ownBrands.includes(a)) || a.localeCompare(b)),
+    [ownBrands],
   )
-
-  const sizeKg = size ?? Number(customSize)
+  const sizeKg = size ?? 0
 
   const save = async () => {
     setError('')
-    if (brand.trim().length < 2) return setError('Type the gas brand, e.g. K-Gas or Pro Gas.')
-    if (!(sizeKg > 0)) return setError('Choose the cylinder size.')
+    if (!brand) return setError('Choose the gas brand from the list.')
+    if (!size) return setError('Choose the cylinder size.')
     if (!(Number(price) > 0)) return setError('Enter your price in KES.')
     if (qty === '' || Number(qty) < 0) return setError('Enter how many cylinders you have (0 if none right now).')
     try {
-      await add.mutateAsync({ brand: brand.trim(), size_kg: sizeKg, type, price_kes: Number(price), quantity: Number(qty) })
+      await add.mutateAsync({
+        brand,
+        size_kg: size,
+        type,
+        price_kes: Number(price),
+        quantity: Number(qty),
+      })
       onClose()
     } catch (e) {
       setError(errorMessage(e))
@@ -305,20 +311,23 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
 
   const chip = (active: boolean) =>
     `rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
-      active ? 'border-transparent bg-brand-600 bg-brand-button text-white shadow-md shadow-black/30' : 'border-white/25 bg-white/10 text-white/80 hover:bg-white/15'
+      active
+        ? 'border-transparent bg-brand-600 bg-brand-button text-white shadow-md shadow-black/30'
+        : 'border-white/25 bg-white/10 text-white/80 hover:bg-white/15'
     }`
   const label = 'mb-1.5 block px-1 text-xs font-semibold tracking-[0.18em] text-white/60 uppercase'
 
   return (
+    // Flat glass (no backdrop blur) so the brand dropdown inside can blur what's behind it.
     <form
       noValidate
-      className={`${GLASS} relative space-y-4 overflow-hidden p-4`}
+      className={`${GLASS_FLAT} relative z-20 space-y-4 p-4`}
       onSubmit={(e) => {
         e.preventDefault()
         save()
       }}
     >
-      <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1" />
+      <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1 rounded-t-2xl" />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Add a gas type</h2>
         <button type="button" aria-label="Close" className="rounded-full p-1.5 text-white/60 hover:bg-white/10" onClick={onClose}>
@@ -326,65 +335,29 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
         </button>
       </div>
 
-      <div>
-        <label className={label} htmlFor="brand">
-          Brand
-        </label>
-        <input
-          id="brand"
-          list="gas-brands"
-          autoFocus
-          autoComplete="off"
-          className={GLASS_INPUT}
-          placeholder="e.g. K-Gas, Pro Gas, Total"
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-        />
-        <datalist id="gas-brands">
-          {suggestions.map((b) => (
-            <option key={b} value={b} />
-          ))}
-        </datalist>
-        {suggestions.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {suggestions.slice(0, 8).map((b) => (
-              <button key={b} type="button" className={`${chip(brand === b)} px-3 py-1 text-xs`} onClick={() => setBrand(b)}>
-                {b}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <GlassSelect
+        tone="dark"
+        label="Brand"
+        placeholder="Search or choose the brand"
+        searchable
+        searchPlaceholder="Search brands, e.g. K-Gas"
+        value={brand}
+        onChange={setBrand}
+        options={brandOptions.map((b) => ({
+          value: b,
+          label: b,
+          description: ownBrands.includes(b) ? 'You already sell this brand' : undefined,
+        }))}
+      />
 
       <div>
         <p className={label}>Cylinder size</p>
         <div className="flex flex-wrap gap-2">
-          {SIZES.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={chip(size === s)}
-              onClick={() => {
-                setSize(s)
-                setCustomSize('')
-              }}
-            >
-              {s} kg
+          {GAS_SIZES.map((s) => (
+            <button key={s} type="button" className={chip(size === s)} onClick={() => setSize(s)}>
+              {sizeLabel(s)}
             </button>
           ))}
-          <input
-            aria-label="Other size in kg"
-            inputMode="numeric"
-            className={`w-24 rounded-full border px-3.5 py-1.5 text-sm text-white outline-none placeholder:text-white/40 ${
-              size === null && customSize ? 'border-brand-400 bg-white/15' : 'border-white/25 bg-white/10'
-            }`}
-            placeholder="Other kg"
-            value={customSize}
-            onChange={(e) => {
-              setCustomSize(e.target.value.replace(/[^\d.]/g, ''))
-              setSize(null)
-            }}
-          />
         </div>
       </div>
 
@@ -429,10 +402,13 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
         </div>
       </div>
 
-      {price && Number(price) > 0 && brand.trim() && sizeKg > 0 && (
+      {price && Number(price) > 0 && brand && sizeKg > 0 && (
         <p className="text-sm text-white/65">
-          Customers will see: <b className="text-white">{brand.trim()} {sizeKg}kg {type === 'refill' ? 'refill' : 'new cylinder'}</b> at{' '}
-          <b className="text-white">{formatKes(Number(price))}</b>
+          Customers will see:{' '}
+          <b className="text-white">
+            {brand} {sizeKg}kg {type === 'refill' ? 'refill' : 'new cylinder'}
+          </b>{' '}
+          at <b className="text-white">{formatKes(Number(price))}</b>
         </p>
       )}
 

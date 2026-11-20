@@ -6,7 +6,7 @@ import { errorMessage } from '../../api'
 import { StatusTimeline } from '../../components/StatusTimeline'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../../components/ui'
 import { useDealerAccept, useDealerReject, useDealerSetStatus, useOrder } from '../../hooks/queries'
-import { dealerPayout, displayPhone, formatKes, productName, productTypeLabel } from '../../lib/format'
+import { accessoryName, dealerPayout, displayPhone, formatKes, productName, productTypeLabel } from '../../lib/format'
 import type { OrderStatus } from '../../types'
 
 const REJECT_REASONS = ['Out of stock', 'Too far to deliver', 'Closing soon', 'Other']
@@ -32,7 +32,8 @@ export default function DealerOrderDetail() {
 
   let next: { status: OrderStatus; label: string } | null = null
   if (o.status === 'accepted') {
-    next = o.type === 'delivery' ? { status: 'out_for_delivery', label: 'Send out for delivery' } : { status: 'ready_for_pickup', label: 'Mark ready for pickup' }
+    next =
+      o.type === 'delivery' ? { status: 'out_for_delivery', label: 'Send out for delivery' } : { status: 'ready_for_pickup', label: 'Mark ready for pickup' }
   } else if (o.status === 'out_for_delivery') next = { status: 'delivered', label: 'Mark as delivered' }
   else if (o.status === 'ready_for_pickup') next = { status: 'collected', label: 'Mark as collected' }
   // "Mark as delivered / collected" only works after the customer confirms receipt in their app.
@@ -58,12 +59,24 @@ export default function DealerOrderDetail() {
                 </span>
               </li>
             ))}
+            {o.accessories.map((a) => (
+              <li key={a.kind}>
+                <span className="text-lg font-bold">{a.quantity}×</span> {accessoryName(a)}
+                <span className="block text-xs text-slate-500">Equipment · {formatKes(a.total_kes)}</span>
+              </li>
+            ))}
           </ul>
           <dl className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-sm">
             <div className="flex justify-between">
               <dt className="text-slate-500">Gas</dt>
               <dd className="tabular-nums">{formatKes(o.subtotal_kes)}</dd>
             </div>
+            {o.accessories_kes > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Equipment</dt>
+                <dd className="tabular-nums">{formatKes(o.accessories_kes)}</dd>
+              </div>
+            )}
             {o.type === 'delivery' && (
               <div className="flex justify-between">
                 <dt className="text-slate-500">Your delivery fee</dt>
@@ -117,8 +130,10 @@ export default function DealerOrderDetail() {
             <div>
               <p className="font-semibold">{o.type === 'delivery' ? 'Waiting for the customer to confirm delivery' : 'Waiting for the customer to collect'}</p>
               <p className="mt-0.5">
-                {o.type === 'delivery' ? 'Hand over the gas and ask the customer to tap “I’ve received my gas” in their app.' : 'When the customer collects, ask them to tap “I’ve collected my gas” in their app.'} The{' '}
-                {formatKes(dealerPayout(o))} payment is released to you and “{next?.label}” unlocks once they confirm.
+                {o.type === 'delivery'
+                  ? 'Hand over the gas and ask the customer to tap “I’ve received my gas” in their app.'
+                  : 'When the customer collects, ask them to tap “I’ve collected my gas” in their app.'}{' '}
+                The {formatKes(dealerPayout(o))} payment is released to you and “{next?.label}” unlocks once they confirm.
               </p>
             </div>
           </div>
@@ -128,10 +143,15 @@ export default function DealerOrderDetail() {
             <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
             <div>
               <p className="font-semibold">
-                {handedOver ? 'The customer confirmed they received the gas' : o.status === 'delivered' ? 'Delivered: confirmed by the customer' : 'Collected: confirmed by the customer'}
+                {handedOver
+                  ? 'The customer confirmed they received the gas'
+                  : o.status === 'delivered'
+                    ? 'Delivered: confirmed by the customer'
+                    : 'Collected: confirmed by the customer'}
               </p>
               <p className="mt-0.5">
-                {formatKes(dealerPayout(o))} has been released to you.{handedOver && ` Tap “${next?.label}” to finish the order.`}
+                {formatKes(dealerPayout(o))} has been released to you.
+                {handedOver && ` Tap “${next?.label}” to finish the order.`}
               </p>
             </div>
           </div>
@@ -141,8 +161,8 @@ export default function DealerOrderDetail() {
           <div role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
             <p className="font-semibold">Cancelled: not accepted in time</p>
             <p className="mt-0.5">
-              This order wasn’t accepted in time, so it was cancelled automatically and the customer {o.status === 'refunded' ? 'has been refunded' : 'is being refunded'}. Accept
-              new orders quickly to keep them.
+              This order wasn’t accepted in time, so it was cancelled automatically and the customer{' '}
+              {o.status === 'refunded' ? 'has been refunded' : 'is being refunded'}. Accept new orders quickly to keep them.
             </p>
           </div>
         )}
@@ -158,7 +178,13 @@ export default function DealerOrderDetail() {
             <p className="mb-3 text-sm text-slate-500">The customer will be refunded.</p>
             <div className="flex flex-wrap gap-2">
               {REJECT_REASONS.map((r) => (
-                <Button key={r} variant="danger" className="py-2 text-sm" loading={reject.isPending} onClick={() => reject.mutate({ id, reason: r }, { onSuccess: () => setRejecting(false) })}>
+                <Button
+                  key={r}
+                  variant="danger"
+                  className="py-2 text-sm"
+                  loading={reject.isPending}
+                  onClick={() => reject.mutate({ id, reason: r }, { onSuccess: () => setRejecting(false) })}
+                >
                   {r}
                 </Button>
               ))}

@@ -63,9 +63,14 @@ export function isActiveOrder(s: OrderStatus): boolean {
 /** Statuses where the customer's M-Pesa payment has gone through and the order is going ahead. */
 export const PAID_STATUSES: OrderStatus[] = ['paid', 'accepted', 'out_for_delivery', 'ready_for_pickup', 'delivered', 'collected']
 
-/** What the dealer is paid for an order: the gas plus their delivery fee (Gasgo keeps the service fee). */
-export function dealerPayout(o: { subtotal_kes: number; delivery_fee_kes: number }): number {
-  return o.subtotal_kes + o.delivery_fee_kes
+/** What the dealer is paid for an order: gas, equipment and their delivery fee (Gasgo keeps the service fee). */
+export function dealerPayout(o: { subtotal_kes: number; accessories_kes?: number; delivery_fee_kes: number }): number {
+  return o.subtotal_kes + (o.accessories_kes ?? 0) + o.delivery_fee_kes
+}
+
+/** "Gas hose pipe (2 m)" */
+export function accessoryName(a: { name: string; length_m: number | null }): string {
+  return a.length_m ? `${a.name} (${a.length_m} m)` : a.name
 }
 
 /** A paid order that was rejected or cancelled and whose refund hasn't been sent yet. */

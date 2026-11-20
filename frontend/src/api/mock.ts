@@ -13,8 +13,12 @@
 //     except numbers ending in 0000, which fail (to test the failure screen).
 import { useAuth } from '../store/auth'
 import type {
+  AccessoryKind,
   Address,
   Dealer,
+  DealerAccessory,
+  DealerPerformance,
+  OrderAccessory,
   DealerStock,
   StockItem,
   Order,
@@ -26,6 +30,7 @@ import type {
 } from '../types'
 import { ApiError, type GasgoApi } from './types'
 import { OUTSIDE_AREA_MESSAGE, isInServiceArea } from '../lib/serviceArea'
+import { GAS_SIZES, catalogBrand } from '../lib/catalog'
 
 export const MOCK_OTP = '123456'
 export const MOCK_DEALER_PHONE = '254700000001'
@@ -34,7 +39,7 @@ const PAYMENT_DELAY_MS = 4000
 const DEALER_TIMEOUT_MS = 3 * 60_000
 /** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
 const REFUND_DELAY_MS = 8000
-const KEY = 'gasgo-mock-db-v5' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v6' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -53,50 +58,152 @@ interface MockDb {
 }
 
 // Sample brands and prices for the demo (approximate, not live prices).
-const BRANDS: { brand: string; refill6: number; refill13: number; new6: number; new13: number }[] = [
-  { brand: 'K-Gas', refill6: 1250, refill13: 2900, new6: 4200, new13: 7600 },
-  { brand: 'Total', refill6: 1300, refill13: 3000, new6: 4400, new13: 7800 },
-  { brand: 'Pro Gas', refill6: 1200, refill13: 2850, new6: 4100, new13: 7400 },
-  { brand: 'Afrigas', refill6: 1200, refill13: 2800, new6: 4000, new13: 7300 },
-  { brand: 'Hashi Gas', refill6: 1150, refill13: 2750, new6: 3900, new13: 7200 },
-  { brand: 'Rubis', refill6: 1280, refill13: 2950, new6: 4300, new13: 7700 },
+// refill = price per kg for a refill; cyl = extra for a new cylinder of each size.
+const BRANDS: { brand: string; perKg: number; sizes: number[] }[] = [
+  { brand: 'K-Gas', perKg: 223, sizes: [3, 6, 13, 22.5, 50] },
+  { brand: 'Total Gas', perKg: 231, sizes: [3, 6, 13, 22.5, 35, 50] },
+  { brand: 'ProGas', perKg: 219, sizes: [6, 13, 22.5, 50] },
+  { brand: 'Shell Afrigas', perKg: 215, sizes: [6, 13, 35] },
+  { brand: 'Hashi Gas', perKg: 211, sizes: [3, 6, 13] },
+  { brand: 'Taifa Gas', perKg: 214, sizes: [6, 13] },
+  { brand: 'Oryx Gas', perKg: 226, sizes: [6, 13, 50] },
+  { brand: 'Lake Gas', perKg: 208, sizes: [6, 13] },
+  { brand: 'SupaGas', perKg: 205, sizes: [3, 6, 13] },
+  { brand: 'MenGas', perKg: 209, sizes: [6, 13] },
 ]
+const CYLINDER_COST: Record<number, number> = { 3: 1800, 6: 2900, 13: 4700, 22.5: 6800, 35: 9500, 50: 12500 }
 
-const PRODUCTS: Product[] = BRANDS.flatMap((b, i) => [
-  { id: i * 4 + 1, brand: b.brand, size_kg: 6, type: 'refill' as const, price_kes: b.refill6, image_url: null, is_active: true },
-  { id: i * 4 + 2, brand: b.brand, size_kg: 13, type: 'refill' as const, price_kes: b.refill13, image_url: null, is_active: true },
-  { id: i * 4 + 3, brand: b.brand, size_kg: 6, type: 'new_cylinder' as const, price_kes: b.new6, image_url: null, is_active: true },
-  { id: i * 4 + 4, brand: b.brand, size_kg: 13, type: 'new_cylinder' as const, price_kes: b.new13, image_url: null, is_active: true },
-])
+const round50 = (n: number) => Math.round(n / 50) * 50
+
+const PRODUCTS: Product[] = (() => {
+  let id = 1
+  return BRANDS.flatMap((b) =>
+    b.sizes.flatMap((size) => {
+      const refill = round50(b.perKg * size)
+      return [
+        { id: id++, brand: b.brand, size_kg: size, type: 'refill' as const, price_kes: refill, image_url: null, is_active: true },
+        { id: id++, brand: b.brand, size_kg: size, type: 'new_cylinder' as const, price_kes: refill + CYLINDER_COST[size], image_url: null, is_active: true },
+      ]
+    }),
+  )
+})()
+
+const productKey = (p: Pick<Product, 'brand' | 'size_kg' | 'type'>) => `${p.brand}|${p.size_kg}|${p.type}`
 
 /**
- * Builds a shop's stock list: every size/type of the given brands, at the reference price plus
- * `offset` KES. `tweak` lets a shop have a few items out of stock or running low.
+ * Builds a shop's stock list: every size/type of the given brands (optionally only some sizes),
+ * at the reference price plus `offset` KES. `tweak` sets the quantity of a few items,
+ * keyed "Brand|size|type", e.g. { 'K-Gas|6|new_cylinder': 2 }.
  */
-function stockFor(brands: string[], qty: number, offset = 0, opts: { refillOnly?: boolean; tweak?: Record<number, number> } = {}) {
-  return PRODUCTS.filter((p) => brands.includes(p.brand) && (!opts.refillOnly || p.type === 'refill')).map((p) => ({
-    product_id: p.id,
-    quantity: opts.tweak?.[p.id] ?? qty,
-    price_kes: p.price_kes + offset,
-  }))
+function stockFor(
+  brands: string[],
+  qty: number,
+  offset = 0,
+  opts: { refillOnly?: boolean; sizes?: number[]; tweak?: Record<string, number> } = {},
+) {
+  return PRODUCTS.filter(
+    (p) => brands.includes(p.brand) && (!opts.refillOnly || p.type === 'refill') && (!opts.sizes || opts.sizes.includes(p.size_kg)),
+  ).map((p) => ({ product_id: p.id, quantity: opts.tweak?.[productKey(p)] ?? qty, price_kes: p.price_kes + offset }))
 }
+
+const acc = (regulator: number | null, hosePerM: number | null, lighter: number | null, grill: number | null, out: AccessoryKind[] = []): DealerAccessory[] =>
+  (
+    [
+      ['regulator', regulator],
+      ['hose', hosePerM],
+      ['lighter', lighter],
+      ['grill', grill],
+    ] as const
+  )
+    .filter(([, price]) => price !== null)
+    .map(([kind, price]) => ({ kind, price_kes: price!, in_stock: !out.includes(kind) }))
 
 // Demo dealers around Nairobi and Thika Road (fictional names, approximate locations).
 const DEALERS: Dealer[] = [
-  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
-  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, delivery_fee_kes: 200, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
-  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, delivery_fee_kes: 120, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
-  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, delivery_fee_kes: 100, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
-  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
+  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: true, stock: stockFor(['K-Gas', 'Total Gas', 'ProGas', 'Shell Afrigas'], 12, 0, { tweak: { 'K-Gas|6|new_cylinder': 2, 'ProGas|22.5|new_cylinder': 0 } }), accessories: acc(1200, 150, 250, 1800) },
+  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, delivery_fee_kes: 200, is_open: true, stock: stockFor(['K-Gas', 'ProGas', 'Hashi Gas', 'Oryx Gas'], 6, -50, { refillOnly: true, sizes: [3, 6, 13] }), accessories: acc(1100, 180, null, null) },
+  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, delivery_fee_kes: 120, is_open: true, stock: stockFor(['Total Gas', 'K-Gas', 'Shell Afrigas', 'Taifa Gas', 'SupaGas'], 9, 50), accessories: acc(1350, 160, 300, 2100, ['grill']) },
+  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, delivery_fee_kes: 100, is_open: true, stock: stockFor(['ProGas', 'Hashi Gas', 'Lake Gas', 'MenGas'], 5, -30), accessories: acc(1000, 120, 200, null) },
+  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: false, stock: stockFor(['K-Gas', 'Total Gas'], 4), accessories: [] },
 ]
 
+const ACCESSORY_NAMES: Record<AccessoryKind, string> = { regulator: 'Gas regulator', hose: 'Gas hose pipe', lighter: 'Gas lighter', grill: 'Gas grill' }
+
+/** Demo sales history for the demo dealer: ~6 months of completed orders, so the Performance page has data (and a period to compare with). */
+function seedHistory(nextId: () => number): MockOrder[] {
+  const dealer = DEALERS[0]
+  let r = 7
+  const rand = () => ((r = (r * 16807) % 2147483647) - 1) / 2147483646 // fixed sequence, same every reset
+  const day = 86_400_000
+  const orders: MockOrder[] = []
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  for (let d = 185; d >= 1; d--) {
+    const weekday = new Date(today.getTime() - d * day).getDay()
+    // Busier on weekends and growing slowly over time.
+    const n = Math.floor(rand() * 3 + (weekday === 0 || weekday === 6 ? 2 : 1) + (185 - d) / 80)
+    for (let k = 0; k < n; k++) {
+      const st = dealer.stock[Math.floor(rand() * dealer.stock.length)]
+      const product = PRODUCTS.find((p) => p.id === st.product_id)!
+      if (product.size_kg > 13 && rand() < 0.7) continue // big cylinders sell less often
+      const quantity = rand() < 0.85 ? 1 : 2
+      const delivery = rand() < 0.7
+      const accessories: OrderAccessory[] = []
+      if (rand() < 0.2) accessories.push({ kind: 'regulator', name: ACCESSORY_NAMES.regulator, quantity: 1, length_m: null, unit_price_kes: 1200, total_kes: 1200 })
+      if (rand() < 0.15) accessories.push({ kind: 'hose', name: ACCESSORY_NAMES.hose, quantity: 1, length_m: 2, unit_price_kes: 300, total_kes: 300 })
+      if (rand() < 0.1) accessories.push({ kind: 'lighter', name: ACCESSORY_NAMES.lighter, quantity: 1, length_m: null, unit_price_kes: 250, total_kes: 250 })
+      const at = new Date(today.getTime() - d * day + (8 + rand() * 12) * 3_600_000).toISOString()
+      const subtotal = st.price_kes * quantity
+      const accessoriesKes = accessories.reduce((s, a) => s + a.total_kes, 0)
+      const fee = delivery ? dealer.delivery_fee_kes : 0
+      const id = nextId()
+      orders.push({
+        id,
+        order_number: `GG-${String(10000 + id).slice(-5)}`,
+        type: delivery ? 'delivery' : 'pickup',
+        status: delivery ? 'delivered' : 'collected',
+        items: [{ product: { ...product, price_kes: st.price_kes }, quantity, unit_price_kes: st.price_kes }],
+        accessories,
+        dealer,
+        address: delivery ? { id: 0, label: 'Home', lat: -1.29, lng: 36.82, formatted_address: 'Nairobi', landmark_notes: '' } : null,
+        customer: { name: ['Achieng O.', 'Kamau M.', 'Wanjiru N.', 'Otieno J.', 'Mutua K.', 'Njeri W.'][Math.floor(rand() * 6)], phone: '254712000111' },
+        subtotal_kes: subtotal,
+        accessories_kes: accessoriesKes,
+        delivery_fee_kes: fee,
+        service_fee_kes: SERVICE_FEE_KES,
+        total_kes: subtotal + accessoriesKes + fee + SERVICE_FEE_KES,
+        mpesa_receipt: `S${id}DEMO`,
+        cancellation_reason: null,
+        customer_confirmed_at: at,
+        funds_released_at: at,
+        status_history: [
+          { status: 'placed', at },
+          { status: 'paid', at },
+          { status: 'accepted', at },
+          { status: delivery ? 'out_for_delivery' : 'ready_for_pickup', at },
+          { status: delivery ? 'delivered' : 'collected', at },
+        ],
+        created_at: at,
+        customer_id: 2,
+        payment_started_at: null,
+        payment_phone: null,
+      })
+    }
+  }
+  return orders
+}
+
 function seed(): MockDb {
+  let id = 1000
   return {
-    users: [{ id: 1, phone: MOCK_DEALER_PHONE, name: 'Demo Dealer', role: 'dealer', dealer_id: 1 }],
+    users: [
+      { id: 1, phone: MOCK_DEALER_PHONE, name: 'Demo Dealer', role: 'dealer', dealer_id: 1 },
+      { id: 2, phone: '254712000111', name: 'Past customers (demo)', role: 'customer' },
+    ],
     addresses: [],
     products: PRODUCTS,
     dealers: DEALERS,
-    orders: [],
+    orders: seedHistory(() => id++),
     nextId: 100,
   }
 }
@@ -195,10 +302,10 @@ function settlePayments(db: MockDb) {
 function publicOrder(o: MockOrder): Order {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { customer_id, payment_started_at, payment_phone, refund_due_at, ...rest } = o
-  return structuredClone({ ...rest, service_fee_kes: rest.service_fee_kes ?? 0, cancellation_reason: rest.cancellation_reason ?? null, funds_released_at: rest.funds_released_at ?? null, customer_confirmed_at: rest.customer_confirmed_at ?? null })
+  return structuredClone({ ...rest, accessories: rest.accessories ?? [], accessories_kes: rest.accessories_kes ?? 0, service_fee_kes: rest.service_fee_kes ?? 0, cancellation_reason: rest.cancellation_reason ?? null, funds_released_at: rest.funds_released_at ?? null, customer_confirmed_at: rest.customer_confirmed_at ?? null })
 }
 
-function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { dealer: Dealer; address: Address | null } {
+function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { dealer: Dealer; address: Address | null; accessoryLines: OrderAccessory[] } {
   const dealer = db.dealers.find((d) => d.id === req.dealer_id)
   if (!dealer) throw new ApiError('Dealer not found.', 404, 'not_found')
   if (!dealer.is_open) throw new ApiError(`${dealer.name} is closed right now.`, 400, 'dealer_closed')
@@ -229,7 +336,33 @@ function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { 
     const { user_id, ...rest } = a
     address = rest
   }
-  return { subtotal_kes: subtotal, delivery_fee_kes: fee, service_fee_kes: SERVICE_FEE_KES, total_kes: subtotal + fee + SERVICE_FEE_KES, dealer, address }
+  // Equipment from the same shop
+  const accessoryLines: OrderAccessory[] = (req.accessories ?? [])
+    .filter((l) => l.quantity > 0)
+    .map((l) => {
+      const listing = (dealer.accessories ?? []).find((x) => x.kind === l.kind)
+      if (!listing || !listing.in_stock) throw new ApiError(`${dealer.name} doesn't have a ${ACCESSORY_NAMES[l.kind].toLowerCase()} in stock.`, 400, 'out_of_stock')
+      let unit = listing.price_kes
+      let length: number | null = null
+      if (l.kind === 'hose') {
+        if (!l.length_m || l.length_m <= 0 || l.length_m > 20) throw new ApiError('Choose a hose length between 0.5 and 20 metres.', 400, 'invalid_length')
+        length = l.length_m
+        unit = Math.round(listing.price_kes * l.length_m)
+      }
+      return { kind: l.kind, name: ACCESSORY_NAMES[l.kind], quantity: Math.floor(l.quantity), length_m: length, unit_price_kes: unit, total_kes: unit * Math.floor(l.quantity) }
+    })
+  const accessoriesKes = accessoryLines.reduce((sum, a) => sum + a.total_kes, 0)
+
+  return {
+    subtotal_kes: subtotal,
+    accessories_kes: accessoriesKes,
+    delivery_fee_kes: fee,
+    service_fee_kes: SERVICE_FEE_KES,
+    total_kes: subtotal + accessoriesKes + fee + SERVICE_FEE_KES,
+    dealer,
+    address,
+    accessoryLines,
+  }
 }
 
 function dealerOrder(db: MockDb, id: number): MockOrder {
@@ -261,6 +394,54 @@ function stockItem(db: MockDb, st: DealerStock): StockItem {
 }
 
 const sameBrand = (a: string, b: string) => a.replace(/[\s-]/g, '').toLowerCase() === b.replace(/[\s-]/g, '').toLowerCase()
+
+/** Kenya calendar day (UTC+3) of an ISO time, as YYYY-MM-DD. */
+const kenyaDay = (iso: string | number) => new Date(new Date(iso).getTime() + 3 * 3_600_000).toISOString().slice(0, 10)
+
+/** Sales figures the backend would compute: orders the customer confirmed, by confirmation day. */
+function performanceFor(orders: MockOrder[], days: number): DealerPerformance {
+  const dayMs = 86_400_000
+  const today = kenyaDay(Date.now())
+  const startMs = Date.parse(today) - (days - 1) * dayMs
+  const prevStartMs = startMs - days * dayMs
+  const earned = (o: MockOrder) => o.subtotal_kes + (o.accessories_kes ?? 0) + o.delivery_fee_kes
+  const confirmed = orders.filter((o) => o.customer_confirmed_at)
+  const dayOf = (o: MockOrder) => kenyaDay(o.customer_confirmed_at!)
+  const inRange = confirmed.filter((o) => Date.parse(dayOf(o)) >= startMs)
+  const prev = confirmed.filter((o) => Date.parse(dayOf(o)) >= prevStartMs && Date.parse(dayOf(o)) < startMs)
+
+  const daily = Array.from({ length: days }, (_, i) => ({ date: new Date(startMs + i * dayMs).toISOString().slice(0, 10), sales_kes: 0, orders: 0 }))
+  const byDate = new Map(daily.map((d) => [d.date, d]))
+  const items = new Map<string, { name: string; quantity: number; sales_kes: number }>()
+  const addItem = (name: string, quantity: number, sales: number) => {
+    const it = items.get(name) ?? { name, quantity: 0, sales_kes: 0 }
+    it.quantity += quantity
+    it.sales_kes += sales
+    items.set(name, it)
+  }
+  for (const o of inRange) {
+    const d = byDate.get(dayOf(o))
+    if (d) {
+      d.sales_kes += earned(o)
+      d.orders += 1
+    }
+    for (const i of o.items) addItem(`${i.product.brand} ${i.product.size_kg}kg ${i.product.type === 'refill' ? 'refill' : 'new cylinder'}`, i.quantity, i.unit_price_kes * i.quantity)
+    for (const a of o.accessories ?? []) addItem(a.name, a.quantity, a.total_kes)
+  }
+  const sum = (list: MockOrder[], f: (o: MockOrder) => number) => list.reduce((s, o) => s + f(o), 0)
+  return {
+    days,
+    sales_kes: sum(inRange, earned),
+    previous_sales_kes: sum(prev, earned),
+    orders: inRange.length,
+    cylinders: sum(inRange, (o) => o.items.reduce((n, i) => n + i.quantity, 0)),
+    gas_kes: sum(inRange, (o) => o.subtotal_kes),
+    accessories_kes: sum(inRange, (o) => o.accessories_kes ?? 0),
+    delivery_fees_kes: sum(inRange, (o) => o.delivery_fee_kes),
+    daily,
+    top_items: [...items.values()].sort((a, b) => b.sales_kes - a.sales_kes).slice(0, 5),
+  }
+}
 
 export const mockApi: GasgoApi = {
   async requestOtp(phone) {
@@ -316,6 +497,7 @@ export const mockApi: GasgoApi = {
       is_open: true,
       // New shops start with no gas listed; the vendor adds their gas types on the Stock screen.
       stock: [],
+      accessories: [],
     }
     db.dealers.push(dealer)
     user.role = 'dealer'
@@ -381,7 +563,7 @@ export const mockApi: GasgoApi = {
     const db = load()
     const user = currentUser(db)
     const q = computeQuote(db, user.id, req)
-    return { subtotal_kes: q.subtotal_kes, delivery_fee_kes: q.delivery_fee_kes, service_fee_kes: q.service_fee_kes, total_kes: q.total_kes }
+    return { subtotal_kes: q.subtotal_kes, accessories_kes: q.accessories_kes, delivery_fee_kes: q.delivery_fee_kes, service_fee_kes: q.service_fee_kes, total_kes: q.total_kes }
   },
 
   async listOrders() {
@@ -421,10 +603,12 @@ export const mockApi: GasgoApi = {
         const price = q.dealer.stock.find((st) => st.product_id === line.product_id)!.price_kes
         return { product: { ...product, price_kes: price }, quantity: line.quantity, unit_price_kes: price }
       }),
+      accessories: q.accessoryLines,
       dealer: q.dealer,
       address: q.address,
       customer: { name: user.name || 'Customer', phone: user.phone },
       subtotal_kes: q.subtotal_kes,
+      accessories_kes: q.accessories_kes,
       delivery_fee_kes: q.delivery_fee_kes,
       service_fee_kes: q.service_fee_kes,
       total_kes: q.total_kes,
@@ -500,7 +684,7 @@ export const mockApi: GasgoApi = {
     if (user.role !== 'dealer') throw new ApiError('Dealers only.', 403, 'forbidden')
     return db.orders
       .filter((o) => o.dealer.id === user.dealer_id && o.status !== 'placed' && o.status !== 'payment_failed')
-      .sort((a, b) => b.id - a.id)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
       .map(publicOrder)
   },
 
@@ -569,9 +753,9 @@ export const mockApi: GasgoApi = {
     await wait()
     const db = load()
     const shop = myShop(db)
-    const brand = item.brand.trim()
-    if (brand.length < 2) throw new ApiError('Enter the gas brand, e.g. K-Gas.', 400, 'invalid')
-    if (!(item.size_kg > 0)) throw new ApiError('Choose the cylinder size.', 400, 'invalid')
+    const brand = catalogBrand(item.brand)
+    if (!brand) throw new ApiError('Choose a gas brand from the list.', 400, 'invalid_brand')
+    if (!(GAS_SIZES as readonly number[]).includes(item.size_kg)) throw new ApiError('Choose one of the cylinder sizes.', 400, 'invalid_size')
     if (!(item.price_kes > 0)) throw new ApiError('Enter the price in KES.', 400, 'invalid')
     if (item.quantity < 0) throw new ApiError('Quantity cannot be negative.', 400, 'invalid')
     // Re-use the catalogue entry if this brand/size/type already exists (e.g. "Kgas" = "K-Gas").
@@ -612,6 +796,36 @@ export const mockApi: GasgoApi = {
     const shop = myShop(db)
     shop.stock = shop.stock.filter((x) => x.product_id !== id)
     save(db)
+  },
+
+  async setAccessory(kind, data) {
+    await wait(250)
+    const db = load()
+    const shop = myShop(db)
+    if (!(kind in ACCESSORY_NAMES)) throw new ApiError('Unknown item.', 400, 'invalid')
+    if (!(data.price_kes > 0)) throw new ApiError('Enter a price above 0.', 400, 'invalid')
+    shop.accessories = shop.accessories ?? []
+    const existing = shop.accessories.find((a) => a.kind === kind)
+    if (existing) Object.assign(existing, { price_kes: Math.round(data.price_kes), in_stock: data.in_stock })
+    else shop.accessories.push({ kind, price_kes: Math.round(data.price_kes), in_stock: data.in_stock })
+    save(db)
+    return structuredClone(shop)
+  },
+
+  async removeAccessory(kind) {
+    await wait(250)
+    const db = load()
+    const shop = myShop(db)
+    shop.accessories = (shop.accessories ?? []).filter((a) => a.kind !== kind)
+    save(db)
+    return structuredClone(shop)
+  },
+
+  async getPerformance(days) {
+    await wait(300)
+    const db = load()
+    const shop = myShop(db)
+    return performanceFor(db.orders.filter((o) => o.dealer.id === shop.id), days)
   },
 
   async dealerSetStatus(id, status) {

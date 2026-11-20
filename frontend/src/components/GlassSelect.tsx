@@ -3,7 +3,7 @@
 //   <GlassSelect label="Gas brand" value={brand} onChange={setBrand}
 //     options={[{ value: 'K-Gas', label: 'K-Gas' }]} placeholder="Choose your brand" />
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, ChevronDown, Search } from 'lucide-react'
 
 export interface GlassOption<T extends string> {
   value: T
@@ -20,6 +20,9 @@ interface Props<T extends string> {
   placeholder?: string
   /** 'light' = frosted white glass (light pages); 'dark' = smoked glass with white text (photo backgrounds). */
   tone?: 'light' | 'dark'
+  /** Show a search box at the top of the list (for long lists such as gas brands). */
+  searchable?: boolean
+  searchPlaceholder?: string
 }
 
 const TONES = {
@@ -51,15 +54,27 @@ const TONES = {
   },
 }
 
-export function GlassSelect<T extends string>({ label, value, options, onChange, placeholder = 'Select…', tone = 'light' }: Props<T>) {
+export function GlassSelect<T extends string>({
+  label,
+  value,
+  options: allOptions,
+  onChange,
+  placeholder = 'Select…',
+  tone = 'light',
+  searchable = false,
+  searchPlaceholder = 'Search…',
+}: Props<T>) {
   const t = TONES[tone]
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const options = q ? allOptions.filter((o) => o.label.toLowerCase().replace(/[\s-]/g, '').includes(q.replace(/[\s-]/g, ''))) : allOptions
   const [active, setActive] = useState(0)
   const root = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const closing = useRef(false)
   const id = useId()
-  const selected = options.find((o) => o.value === value)
+  const selected = allOptions.find((o) => o.value === value)
   const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
   // Parallax open: the glass panel unrolls downwards while the options slide in on their own layer.
@@ -72,18 +87,32 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
     const anims = [
       list.animate(
         [
-          { opacity: 0, transform: 'translateY(-8px)', clipPath: 'inset(0 0 100% 0 round 16px)' },
-          { opacity: 1, transform: 'none', clipPath: 'inset(0 0 0% 0 round 16px)' },
+          {
+            opacity: 0,
+            transform: 'translateY(-8px)',
+            clipPath: 'inset(0 0 100% 0 round 16px)',
+          },
+          {
+            opacity: 1,
+            transform: 'none',
+            clipPath: 'inset(0 0 0% 0 round 16px)',
+          },
         ],
         { duration: 380, easing: ease },
       ),
-      ...Array.from(list.children).map((li, i) =>
+      // The stagger is capped so long lists (e.g. 30 brands) still finish quickly.
+      ...Array.from(list.children).map((li, n) =>
         li.animate(
           [
-            { opacity: 0, transform: `translateY(${-(16 + i * 7)}px)` },
+            { opacity: 0, transform: `translateY(${-(16 + Math.min(n, 6) * 7)}px)` },
             { opacity: 1, transform: 'none' },
           ],
-          { duration: 420 + i * 45, delay: 30 + i * 22, easing: ease, fill: 'backwards' },
+          {
+            duration: 420 + Math.min(n, 6) * 45,
+            delay: 30 + Math.min(n, 6) * 22,
+            easing: ease,
+            fill: 'backwards',
+          },
         ),
       ),
     ]
@@ -94,21 +123,38 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
   const close = () => {
     const list = listRef.current
     if (!open || closing.current) return
-    if (!list || reduceMotion() || typeof list.animate !== 'function') return setOpen(false)
+    if (!list || reduceMotion() || typeof list.animate !== 'function') {
+      setQuery('')
+      return setOpen(false)
+    }
     closing.current = true
     const ease = 'cubic-bezier(0.4, 0, 0.6, 1)'
     Array.from(list.children).forEach((li, i) =>
-      li.animate([{ opacity: 1, transform: 'none' }, { opacity: 0, transform: `translateY(${-(10 + i * 4)}px)` }], {
-        duration: 160,
-        easing: ease,
-        fill: 'forwards',
-      }),
+      li.animate(
+        [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: `translateY(${-(10 + i * 4)}px)` },
+        ],
+        {
+          duration: 160,
+          easing: ease,
+          fill: 'forwards',
+        },
+      ),
     )
     list
       .animate(
         [
-          { opacity: 1, transform: 'none', clipPath: 'inset(0 0 0% 0 round 16px)' },
-          { opacity: 0, transform: 'translateY(-6px)', clipPath: 'inset(0 0 100% 0 round 16px)' },
+          {
+            opacity: 1,
+            transform: 'none',
+            clipPath: 'inset(0 0 0% 0 round 16px)',
+          },
+          {
+            opacity: 0,
+            transform: 'translateY(-6px)',
+            clipPath: 'inset(0 0 100% 0 round 16px)',
+          },
         ],
         { duration: 240, easing: ease, fill: 'forwards' },
       )
@@ -116,6 +162,7 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
         () => {
           closing.current = false
           setOpen(false)
+          setQuery('')
         },
         () => undefined,
       )
@@ -145,9 +192,9 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setActive((i) => Math.max(0, i - 1))
-    } else if ((e.key === 'Enter' || e.key === ' ') && open) {
+    } else if ((e.key === 'Enter' || (e.key === ' ' && !(e.target instanceof HTMLInputElement))) && open) {
       e.preventDefault()
-      choose(options[active].value)
+      if (options[active]) choose(options[active].value)
     }
   }
 
@@ -162,7 +209,12 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
         aria-expanded={open}
         aria-labelledby={`${id}-label`}
         onClick={() => {
-          setActive(Math.max(0, options.findIndex((o) => o.value === value)))
+          setActive(
+            Math.max(
+              0,
+              options.findIndex((o) => o.value === value),
+            ),
+          )
           if (open) close()
           else setOpen(true)
         }}
@@ -179,35 +231,62 @@ export function GlassSelect<T extends string>({ label, value, options, onChange,
       </button>
 
       {open && (
-        <ul
-          ref={listRef}
-          role="listbox"
-          aria-labelledby={`${id}-label`}
-          className={`absolute right-0 left-0 z-40 mt-2 max-h-80 overflow-auto rounded-2xl border p-1.5 shadow-2xl ring-1 backdrop-blur-xl backdrop-saturate-150 ${t.panel}`}
-        >
-          {options.map((o, i) => {
-            const isSel = o.value === value
-            return (
-              <li
-                key={o.value}
-                role="option"
-                aria-selected={isSel}
-                onPointerEnter={() => setActive(i)}
-                onClick={() => choose(o.value)}
-                className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
-                  i === active ? t.active : ''
-                }`}
+        <div className="absolute right-0 left-0 z-40 mt-2">
+          {/* The search box sits over the top of the list (outside its scroll area), so options never slide under it. */}
+          {searchable && (
+            <div className={`absolute inset-x-px top-px z-10 rounded-t-2xl px-1.5 pt-1.5 pb-1 ${tone === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
+              <label
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${tone === 'dark' ? 'border-white/20 bg-black/30' : 'border-slate-200 bg-white'}`}
               >
-                {o.icon && <span className="shrink-0">{o.icon}</span>}
-                <span className="min-w-0 flex-1">
-                  <span className={`block font-medium ${t.text}`}>{o.label}</span>
-                  {o.description && <span className={`block text-xs ${t.optionSub}`}>{o.description}</span>}
-                </span>
-                {isSel && <Check className={`h-4 w-4 shrink-0 ${t.check}`} />}
+                <Search className={`h-4 w-4 shrink-0 ${t.chevron}`} />
+                <input
+                  autoFocus
+                  aria-label={searchPlaceholder}
+                  placeholder={searchPlaceholder}
+                  className={`w-full min-w-0 bg-transparent text-sm outline-none ${t.text} ${tone === 'dark' ? 'placeholder:text-white/40' : 'placeholder:text-slate-400'}`}
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    setActive(0)
+                    listRef.current?.scrollTo({ top: 0 })
+                  }}
+                />
+              </label>
+            </div>
+          )}
+          <ul
+            ref={listRef}
+            role="listbox"
+            aria-labelledby={`${id}-label`}
+            className={`max-h-80 overflow-auto rounded-2xl border p-1.5 shadow-2xl ring-1 backdrop-blur-xl backdrop-saturate-150 ${searchable ? `pt-14 ${t.panel.replace(/bg-\S+/, tone === 'dark' ? 'bg-slate-900/95' : 'bg-white/95')}` : t.panel}`}
+          >
+            {searchable && options.length === 0 && (
+              <li role="presentation" className={`px-3 py-4 text-center text-sm ${t.optionSub}`}>
+                No match for “{query.trim()}”
               </li>
-            )
-          })}
-        </ul>
+            )}
+            {options.map((o, i) => {
+              const isSel = o.value === value
+              return (
+                <li
+                  key={o.value}
+                  role="option"
+                  aria-selected={isSel}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => choose(o.value)}
+                  className={`flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${i === active ? t.active : ''}`}
+                >
+                  {o.icon && <span className="shrink-0">{o.icon}</span>}
+                  <span className="min-w-0 flex-1">
+                    <span className={`block font-medium ${t.text}`}>{o.label}</span>
+                    {o.description && <span className={`block text-xs ${t.optionSub}`}>{o.description}</span>}
+                  </span>
+                  {isSel && <Check className={`h-4 w-4 shrink-0 ${t.check}`} />}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
     </div>
   )

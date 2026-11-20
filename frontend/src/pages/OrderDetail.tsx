@@ -6,7 +6,7 @@ import { errorMessage } from '../api'
 import { StatusTimeline } from '../components/StatusTimeline'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../components/ui'
 import { useCancelOrder, useConfirmReceived, useOrder } from '../hooks/queries'
-import { awaitingRefund, displayPhone, formatDateTime, formatKes, productName } from '../lib/format'
+import { accessoryName, awaitingRefund, displayPhone, formatDateTime, formatKes, productName } from '../lib/format'
 import { useCart } from '../store/cart'
 
 export default function OrderDetail() {
@@ -156,6 +156,14 @@ export default function OrderDetail() {
                   {i.quantity} × {productName(i.product)}
                 </span>
                 <span className="tabular-nums">{formatKes(i.unit_price_kes * i.quantity)}</span>
+              </li>
+            ))}
+            {o.accessories.map((a) => (
+              <li key={a.kind} className="flex justify-between">
+                <span>
+                  {a.quantity} × {accessoryName(a)}
+                </span>
+                <span className="tabular-nums">{formatKes(a.total_kes)}</span>
               </li>
             ))}
             {o.type === 'delivery' && (

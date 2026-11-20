@@ -95,4 +95,8 @@ export const realApi: GasgoApi = {
   addStock: (item) => request('POST', '/dealer/stock/', item),
   updateStock: (id, data) => request('PATCH', `/dealer/stock/${id}/`, data),
   removeStock: (id) => request('DELETE', `/dealer/stock/${id}/`),
+
+  setAccessory: (kind, data) => request('PUT', `/dealer/accessories/${kind}/`, data),
+  removeAccessory: (kind) => request('DELETE', `/dealer/accessories/${kind}/`),
+  getPerformance: (days) => request('GET', `/dealer/performance/?days=${days}`),
 }

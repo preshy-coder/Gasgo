@@ -7,7 +7,7 @@ import { DealerShell } from '../../components/DealerShell'
 import { GLASS, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
 import { StatusBadge } from '../../components/ui'
 import { useDealerOrders } from '../../hooks/queries'
-import { dealerPayout, formatKes, formatTime, productName } from '../../lib/format'
+import { accessoryName, dealerPayout, formatKes, formatTime, productName } from '../../lib/format'
 import type { Order } from '../../types'
 
 type Tab = 'new' | 'active' | 'done'
@@ -33,13 +33,13 @@ export default function DealerOrders() {
             key={t}
             onClick={() => setTab(t)}
             className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-              tab === t ? 'border-transparent bg-brand-600 bg-brand-button text-white shadow-md shadow-black/30' : 'border-white/20 bg-white/10 text-white/70 hover:text-white'
+              tab === t
+                ? 'border-transparent bg-brand-600 bg-brand-button text-white shadow-md shadow-black/30'
+                : 'border-white/20 bg-white/10 text-white/70 hover:text-white'
             }`}
           >
             {t === 'new' ? 'New' : t === 'active' ? 'In progress' : 'Completed'}
-            {t !== 'done' && count(t) > 0 && (
-              <span className={`rounded-full px-1.5 text-xs ${tab === t ? 'bg-white/25' : 'bg-white/15'}`}>{count(t)}</span>
-            )}
+            {t !== 'done' && count(t) > 0 && <span className={`rounded-full px-1.5 text-xs ${tab === t ? 'bg-white/25' : 'bg-white/15'}`}>{count(t)}</span>}
           </button>
         ))}
       </div>
@@ -66,14 +66,16 @@ export default function DealerOrders() {
               </div>
               {(o.status === 'out_for_delivery' || o.status === 'ready_for_pickup') &&
                 (o.customer_confirmed_at ? (
-                  <p className="text-xs font-medium text-green-300">Customer confirmed · tap to mark as {o.status === 'out_for_delivery' ? 'delivered' : 'collected'}</p>
+                  <p className="text-xs font-medium text-green-300">
+                    Customer confirmed · tap to mark as {o.status === 'out_for_delivery' ? 'delivered' : 'collected'}
+                  </p>
                 ) : (
                   <p className="text-xs font-medium text-amber-300">Waiting for customer to confirm</p>
                 ))}
               {(o.status === 'delivered' || o.status === 'collected') && (
                 <p className="text-xs font-medium text-green-300">Confirmed by customer · payment released</p>
               )}
-              <p className="truncate text-sm text-white/75">{o.items.map((i) => `${i.quantity}× ${productName(i.product)}`).join(', ')}</p>
+              <p className="truncate text-sm text-white/75">{[...o.items.map((i) => `${i.quantity}× ${productName(i.product)}`), ...o.accessories.map((x) => `${x.quantity}× ${accessoryName(x)}`)].join(', ')}</p>
               <p className="text-xs text-white/50">
                 {formatTime(o.created_at)} · {o.type === 'delivery' ? 'Delivery' : 'Pickup'} · {formatKes(dealerPayout(o))}
               </p>

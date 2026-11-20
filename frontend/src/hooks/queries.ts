@@ -1,7 +1,7 @@
 // TanStack Query hooks: caching, loading states and refetching for every API call.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
-import type { NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem, ShopUpdate } from '../types'
+import type { AccessoryKind, NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem, ShopUpdate } from '../types'
 import { awaitingRefund, isActiveOrder } from '../lib/format'
 
 export const keys = {
@@ -15,6 +15,7 @@ export const keys = {
   dealerOrders: ['dealer-orders'] as const,
   myShop: ['my-shop'] as const,
   myStock: ['my-stock'] as const,
+  performance: (days: number) => ['performance', days] as const,
 }
 
 export const useProducts = () => useQuery({ queryKey: keys.products, queryFn: api.listProducts, staleTime: 5 * 60_000 })
@@ -150,3 +151,21 @@ export function useRemoveStock() {
   const invalidate = useStockInvalidate()
   return useMutation({ mutationFn: (id: number) => api.removeStock(id), onSuccess: invalidate })
 }
+
+// ---------- Vendor market & performance ----------
+
+export function useSetAccessory() {
+  const invalidate = useStockInvalidate()
+  return useMutation({
+    mutationFn: ({ kind, ...data }: { kind: AccessoryKind; price_kes: number; in_stock: boolean }) => api.setAccessory(kind, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRemoveAccessory() {
+  const invalidate = useStockInvalidate()
+  return useMutation({ mutationFn: (kind: AccessoryKind) => api.removeAccessory(kind), onSuccess: invalidate })
+}
+
+export const usePerformance = (days: number) =>
+  useQuery({ queryKey: keys.performance(days), queryFn: () => api.getPerformance(days), refetchInterval: 30_000 })

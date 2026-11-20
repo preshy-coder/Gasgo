@@ -1,4 +1,6 @@
 import type {
+  AccessoryKind,
+  DealerPerformance,
   ShopUpdate,
   Address,
   CreateOrderRequest,
@@ -66,6 +68,14 @@ export interface GasgoApi {
   addStock(item: NewStockItem): Promise<StockItem>
   updateStock(id: number, data: Partial<Pick<StockItem, 'quantity' | 'price_kes'>>): Promise<StockItem>
   removeStock(id: number): Promise<void>
+
+  // Vendor market: gas equipment (regulators, hoses, lighters, grills) from a fixed list
+  /** Add or update an item the shop sells. For a hose, price_kes is per metre. */
+  setAccessory(kind: AccessoryKind, data: { price_kes: number; in_stock: boolean }): Promise<Dealer>
+  removeAccessory(kind: AccessoryKind): Promise<Dealer>
+
+  // Vendor performance
+  getPerformance(days: number): Promise<DealerPerformance>
 }
 
 export class ApiError extends Error {

@@ -5,6 +5,8 @@ import Checkout from './pages/Checkout'
 import Dealers from './pages/Dealers'
 import DealerOrderDetail from './pages/dealer/DealerOrderDetail'
 import DealerOrders from './pages/dealer/DealerOrders'
+import DealerMarket from './pages/dealer/DealerMarket'
+import DealerPerformance from './pages/dealer/DealerPerformance'
 import DealerStock from './pages/dealer/DealerStock'
 import Help from './pages/Help'
 import Home from './pages/Home'
@@ -43,6 +45,8 @@ export default function App() {
         <Route element={<RequireAuth role="dealer" />}>
           <Route path="/dealer" element={<DealerOrders />} />
           <Route path="/dealer/stock" element={<DealerStock />} />
+          <Route path="/dealer/market" element={<DealerMarket />} />
+          <Route path="/dealer/performance" element={<DealerPerformance />} />
           <Route path="/dealer/orders/:id" element={<DealerOrderDetail />} />
         </Route>
 
