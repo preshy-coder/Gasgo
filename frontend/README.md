@@ -58,7 +58,7 @@ M-Pesa payment buttons stay green so customers recognise them.
 
 ## Animations
 
-- **Page transitions** (`src/components/PageTransition.tsx`): parallax slide with depth blur. The page you leave drifts away, dims and blurs out of focus, and a soft blur band rides along the seam so its edge melts away; the new page slides in sharp. Back reverses it; bottom tabs slide in the direction of the tab. Tweak `DURATION`, `PARALLAX`, `BLUR` and `SEAM_W` at the top of the file.
+- **Page transitions** (`src/components/PageTransition.tsx`): parallax slide with depth blur. Takes 220 ms. The page you leave drifts away, dims and blurs out of focus, and a soft blur band rides along the seam so its edge melts away; the new page slides in sharp. Back reverses it; bottom tabs slide in the direction of the tab. Tweak `DURATION`, `PARALLAX`, `BLUR` and `SEAM_W` at the top of the file.
 - **Edge blur** (`EdgeBlur` in `src/components/glass.tsx`): on glass pages, content scrolling under the header or behind the nav bar / bottom buttons fades into a progressive blur instead of a hard edge.
 - **Scroll motion** (`src/components/ScrollMotion.tsx` + `.motion-item` styles in `index.css`): cards fade up and come into focus one after another when a page opens; as you scroll, cards leaving the top blur and fade, and sharpen again when you scroll back. Add the `motion-item` class to any element to give it this motion.
 - **Scroll parallax** (`src/hooks/useScrollParallax.ts`): the landing and login background photos scroll slower than the content.

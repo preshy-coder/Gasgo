@@ -9,8 +9,8 @@
 // Nothing happens for users who turn on "reduce motion".
 import { useEffect } from 'react'
 
-const STAGGER_MS = 30
-const MAX_STAGGER = 6
+const STAGGER_MS = 18
+const MAX_STAGGER = 5
 
 export function ScrollMotion() {
   useEffect(() => {

@@ -13,11 +13,11 @@ import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useLocation, useNavigationType } from 'react-router-dom'
 import { TAB_PATHS as TABS } from '../lib/tabs'
 
-const DURATION = 320 // ms (was 520)
+const DURATION = 220 // ms (was 320)
 const EASING = 'cubic-bezier(0.32, 0.72, 0, 1)' // fast start, long soft landing
 const PARALLAX = '-30%' // how far the back layer moves while the front layer moves 100%
-const BLUR = 8 // px of blur on the page going out of focus (was 14)
-const SEAM_W = 72 // width of the soft blur band where the two pages meet (was 120)
+const BLUR = 6 // px of blur on the page going out of focus (was 14)
+const SEAM_W = 56 // width of the soft blur band where the two pages meet (was 120)
 
 type Kind = 'forward' | 'back'
 
