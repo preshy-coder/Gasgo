@@ -1,10 +1,11 @@
 // Order tracking. useOrder polls every 3 s while the order is still moving.
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CheckCircle2, Clock3, MapPin, Phone, RotateCcw, Store } from 'lucide-react'
+import { CheckCircle2, Clock3, MapPin, PackageCheck, Phone, RotateCcw, Store } from 'lucide-react'
 import { errorMessage } from '../api'
 import { StatusTimeline } from '../components/StatusTimeline'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../components/ui'
-import { useCancelOrder, useOrder } from '../hooks/queries'
+import { useCancelOrder, useConfirmReceived, useOrder } from '../hooks/queries'
 import { awaitingRefund, displayPhone, formatDateTime, formatKes, productName } from '../lib/format'
 import { useCart } from '../store/cart'
 
@@ -13,7 +14,9 @@ export default function OrderDetail() {
   const navigate = useNavigate()
   const order = useOrder(id)
   const cancel = useCancelOrder()
+  const confirm = useConfirmReceived()
   const cart = useCart()
+  const [confirming, setConfirming] = useState(false)
 
   if (order.isPending) return <Spinner />
   if (order.isError)
@@ -29,6 +32,8 @@ export default function OrderDetail() {
   const finished = ['delivered', 'collected', 'cancelled', 'rejected_by_dealer', 'refunded'].includes(o.status)
   const timedOut = o.cancellation_reason === 'dealer_timeout'
   const refundPending = awaitingRefund(o)
+  // Payment is held until the customer confirms they have the gas.
+  const canConfirm = o.status === 'out_for_delivery' || o.status === 'ready_for_pickup'
 
   const reorder = () => {
     cart.clear()
@@ -75,6 +80,34 @@ export default function OrderDetail() {
             Your gas is ready. Show order number <b>{o.order_number}</b> at {o.dealer.name}
             {o.items.some((i) => i.product.type === 'refill') && ' and bring your empty cylinder'}.
           </div>
+        )}
+
+        {/* Customer confirmed receipt: payment released to the dealer */}
+        {(o.status === 'delivered' || o.status === 'collected') && o.funds_released_at && (
+          <Notice tone="success" icon={<CheckCircle2 className="h-5 w-5" />} title={o.status === 'delivered' ? 'Delivery confirmed' : 'Pickup confirmed'}>
+            Thanks for confirming. Your payment has been released to {o.dealer.name}.
+          </Notice>
+        )}
+
+        {/* Ask before releasing the money */}
+        {canConfirm && confirming && (
+          <Card>
+            <p className="font-semibold">Have you received your gas?</p>
+            <p className="mt-1 text-sm text-slate-600">
+              Only confirm once you have the cylinder and it's the right gas. Your payment will then be released to {o.dealer.name}. This can't be undone.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button variant="secondary" className="whitespace-nowrap" onClick={() => setConfirming(false)}>
+                Not yet
+              </Button>
+              <Button full loading={confirm.isPending} onClick={() => confirm.mutate(o.id, { onSuccess: () => setConfirming(false) })}>
+                Yes, I have it
+              </Button>
+            </div>
+            <Link to="/help" className="mt-3 block text-center text-sm font-semibold text-brand-700">
+              Problem with your order? Contact us
+            </Link>
+          </Card>
         )}
 
         <Card>
@@ -128,7 +161,13 @@ export default function OrderDetail() {
             {o.type === 'delivery' && (
               <li className="flex justify-between text-slate-600">
                 <span>Delivery fee</span>
-                <span className="tabular-nums">{formatKes(o.delivery_fee_kes)}</span>
+                <span className="tabular-nums">{o.delivery_fee_kes === 0 ? 'Free' : formatKes(o.delivery_fee_kes)}</span>
+              </li>
+            )}
+            {o.service_fee_kes > 0 && (
+              <li className="flex justify-between text-slate-600">
+                <span>Service fee</span>
+                <span className="tabular-nums">{formatKes(o.service_fee_kes)}</span>
               </li>
             )}
             <li className="flex justify-between border-t border-slate-100 pt-2 font-bold">
@@ -140,11 +179,20 @@ export default function OrderDetail() {
         </Card>
 
         {cancel.isError && <ErrorBox message={errorMessage(cancel.error)} />}
+        {confirm.isError && <ErrorBox message={errorMessage(confirm.error)} />}
       </div>
 
-      {(needsPayment || canCancel || finished) && (
+      {(needsPayment || canCancel || finished || (canConfirm && !confirming)) && (
         <BottomBar>
           <div className="mb-1 space-y-1">
+            {canConfirm && !confirming && (
+              <>
+                <Button full onClick={() => setConfirming(true)}>
+                  <PackageCheck className="h-5 w-5" /> {o.type === 'delivery' ? 'I’ve received my gas' : 'I’ve collected my gas'}
+                </Button>
+                <p className="pt-1 pb-0.5 text-center text-xs text-slate-500">Your payment is held safely until you confirm.</p>
+              </>
+            )}
             {needsPayment && (
               <Link to={`/orders/${o.id}/pay`} className="block">
                 <Button variant="mpesa" full>

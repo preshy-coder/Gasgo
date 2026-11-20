@@ -106,7 +106,10 @@ export default function Checkout() {
           {quote.data && (
             <dl className="space-y-1.5 text-sm">
               <Row label="Gas" value={formatKes(quote.data.subtotal_kes)} />
-              {orderType === 'delivery' && <Row label="Delivery fee" value={formatKes(quote.data.delivery_fee_kes)} />}
+              {orderType === 'delivery' && (
+                <Row label="Delivery fee" value={quote.data.delivery_fee_kes === 0 ? 'Free' : formatKes(quote.data.delivery_fee_kes)} />
+              )}
+              <Row label="Service fee" value={formatKes(quote.data.service_fee_kes)} />
               <div className="flex justify-between border-t border-slate-100 pt-2 text-base font-bold">
                 <dt>Total</dt>
                 <dd className="tabular-nums">{formatKes(quote.data.total_kes)}</dd>

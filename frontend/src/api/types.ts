@@ -1,4 +1,5 @@
 import type {
+  ShopUpdate,
   Address,
   CreateOrderRequest,
   Dealer,
@@ -47,6 +48,8 @@ export interface GasgoApi {
   createOrder(req: CreateOrderRequest): Promise<Order>
   payOrder(id: number, phone: string): Promise<PayResponse>
   cancelOrder(id: number): Promise<Order>
+  /** Customer confirms they have the gas: order becomes delivered / collected and the payment is released to the dealer. */
+  confirmReceived(id: number): Promise<Order>
 
   // Dealer
   listDealerOrders(): Promise<Order[]>
@@ -57,6 +60,8 @@ export interface GasgoApi {
   // Vendor shop and stock (gas types are entered by the vendor)
   getMyShop(): Promise<Dealer>
   setShopOpen(isOpen: boolean): Promise<Dealer>
+  /** Change shop settings such as the delivery fee. */
+  updateShop(patch: ShopUpdate): Promise<Dealer>
   listMyStock(): Promise<StockItem[]>
   addStock(item: NewStockItem): Promise<StockItem>
   updateStock(id: number, data: Partial<Pick<StockItem, 'quantity' | 'price_kes'>>): Promise<StockItem>

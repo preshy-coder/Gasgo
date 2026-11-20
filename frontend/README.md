@@ -31,7 +31,7 @@ With `VITE_USE_MOCK_API=true` in `.env`, the app uses a fake backend that runs i
 - **M-Pesa:** payments succeed after about 4 seconds. A number ending in `0000` fails, so you can test the failure screen.
 - **Reset:** Profile → "Reset demo data"
 
-To test the whole flow, place and pay for an order as a customer from the Gasgo Demo Dealer, log out, then log in as the dealer to accept it and move it to delivered. Log back in as the customer to see the tracking update.
+To test the whole flow, place and pay for an order as a customer from the Gasgo Demo Dealer, log out, then log in as the dealer to accept it and send it out for delivery. Log back in as the customer and tap "I've received my gas": the payment is released and the dealer's screen shows it as delivered.
 
 ## Ordering flow on the home screen
 
@@ -91,6 +91,11 @@ What the frontend expects from the backend, beyond the agreement doc:
   - Each dealer's `stock` entries now include the shop's own `price_kes`. Quotes and orders must use **that shop's** price.
   - `GET /products/` should return only gas types that at least one **open** shop has in stock, with `price_kes` = the lowest of those shop prices (shown to customers as "from KES …").
   - Accepting an order should reduce the shop's stock.
+- **Fees: gas price + the shop's delivery fee + Gasgo's fixed service fee.**
+  - Each dealer has `delivery_fee_kes` (flat KES, set by the vendor: at sign-up in `POST /vendors/register/`, and later with `PATCH /dealer/shop/` `{ delivery_fee_kes }`, 0 = free delivery). Charged on delivery orders only. It replaces the old distance-based fee.
+  - `service_fee_kes` is one constant set on the backend (the demo uses KES 50), added to every order, delivery or pickup. Quotes and orders return it: `total_kes = subtotal_kes + delivery_fee_kes + service_fee_kes`.
+  - When the customer confirms receipt, the dealer is paid `subtotal_kes + delivery_fee_kes`; Gasgo keeps the service fee.
+- **Payment held until the customer confirms (escrow):** the dealer can only move an order to `out_for_delivery` or `ready_for_pickup`. The customer then taps "I've received my gas" / "I've collected my gas", which calls `POST /orders/{id}/confirm-received/` (customer's own order, only from those two statuses). The backend sets the status to `delivered` / `collected`, releases the payment to the dealer, and sets the new order field `funds_released_at` (ISO time, `null` until then). `POST /dealer/orders/{id}/status/` must refuse `delivered` and `collected`. Decide a fallback for customers who never tap it, e.g. auto-confirm after 24 hours unless they've reported a problem.
 - `GET /orders/{id}/` also works for the dealer who owns the order (the dealer screens use it).
 - Orders include a `customer: { name, phone }` field for the dealer's view.
 - Dealer endpoints: `GET /dealer/orders/`, `POST /dealer/orders/{id}/accept/`, `POST /dealer/orders/{id}/reject/` (`{ reason }`), `POST /dealer/orders/{id}/status/` (`{ status }`).
@@ -139,6 +144,7 @@ Vendors manage their own gas list on **Stock** (`/dealer/stock`, next to **Order
 - **Add a gas type:** brand (typed by the vendor, with suggestions from brands other shops use), cylinder size (3/6/13/22/50 kg or any other), refill or new cylinder, price and quantity in stock.
 - **Stock levels:** each item shows *In stock*, *Low* (3 or fewer) or *Out of stock*, with +/− buttons. The price can be edited in place, and items can be removed.
 - **Open / closed** switch for the shop.
+- **Delivery fee:** the shop's own flat charge for delivery orders, separate from gas prices (also asked at sign-up). Gasgo's fixed service fee is added for the customer on top.
 - New shops start with no gas listed and land on this screen right after registering.
 
 Customers only see brands and sizes that some open shop has in stock, priced "from" the cheapest shop; each shop's own total shows in the dealer list and at checkout.
@@ -154,9 +160,9 @@ Customers only see brands and sizes that some open shop has in stock, priced "fr
 | `/dealers` | Dealers sorted by distance, with stock and opening hours |
 | `/checkout` | Summary with backend-calculated fee and total |
 | `/orders/:id/pay` | M-Pesa STK Push: waiting, success, failure, timeout |
-| `/orders/:id` | Live tracking (refreshes every 3 s) |
+| `/orders/:id` | Live tracking (refreshes every 3 s); "I've received my gas" button releases the payment to the dealer |
 | `/orders`, `/help`, `/profile` | History, FAQ + gas safety, account |
-| `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, update status |
+| `/dealer`, `/dealer/orders/:id` | Vendor orders: new / in progress / completed, accept, reject, send out / mark ready (the customer confirms delivery) |
 | `/dealer/stock` | Vendor stock: gas types, prices, stock levels, open/closed |
 
 ## Before launch

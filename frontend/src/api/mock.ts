@@ -34,7 +34,7 @@ const PAYMENT_DELAY_MS = 4000
 const DEALER_TIMEOUT_MS = 3 * 60_000
 /** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
 const REFUND_DELAY_MS = 8000
-const KEY = 'gasgo-mock-db-v4' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v5' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -83,11 +83,11 @@ function stockFor(brands: string[], qty: number, offset = 0, opts: { refillOnly?
 
 // Demo dealers around Nairobi and Thika Road (fictional names, approximate locations).
 const DEALERS: Dealer[] = [
-  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
-  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
-  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
-  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
-  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
+  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: true, stock: stockFor(['K-Gas', 'Total', 'Pro Gas', 'Afrigas'], 12, 0, { tweak: { 3: 2, 12: 0 } }) },
+  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, delivery_fee_kes: 200, is_open: true, stock: stockFor(['K-Gas', 'Pro Gas', 'Hashi Gas'], 6, -50, { refillOnly: true, tweak: { 10: 0 } }) },
+  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, delivery_fee_kes: 120, is_open: true, stock: stockFor(['Total', 'Rubis', 'K-Gas', 'Afrigas'], 9, 50) },
+  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, delivery_fee_kes: 100, is_open: true, stock: stockFor(['Pro Gas', 'Hashi Gas', 'Afrigas'], 5, -30) },
+  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: false, stock: stockFor(['K-Gas', 'Total'], 4) },
 ]
 
 function seed(): MockDb {
@@ -147,10 +147,8 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * R * Math.asin(Math.sqrt(h))
 }
 
-/** Delivery fee rule used by the mock: KES 150 for the first 3 km, then KES 30 per km. */
-function deliveryFee(distanceKm: number): number {
-  return 150 + Math.max(0, Math.ceil(distanceKm - 3)) * 30
-}
+/** Gasgo's service fee: the same on every order (delivery or pickup). The real value is set by the backend. */
+const SERVICE_FEE_KES = 50
 
 function setStatus(order: MockOrder, status: OrderStatus) {
   order.status = status
@@ -197,7 +195,7 @@ function settlePayments(db: MockDb) {
 function publicOrder(o: MockOrder): Order {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { customer_id, payment_started_at, payment_phone, refund_due_at, ...rest } = o
-  return structuredClone({ ...rest, cancellation_reason: rest.cancellation_reason ?? null })
+  return structuredClone({ ...rest, service_fee_kes: rest.service_fee_kes ?? 0, cancellation_reason: rest.cancellation_reason ?? null, funds_released_at: rest.funds_released_at ?? null })
 }
 
 function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { dealer: Dealer; address: Address | null } {
@@ -226,12 +224,12 @@ function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { 
     if (km > dealer.delivery_radius_km) {
       throw new ApiError(`${dealer.name} doesn't deliver that far (${km.toFixed(1)} km).`, 400, 'out_of_range')
     }
-    fee = deliveryFee(km)
+    fee = dealer.delivery_fee_kes ?? 0 // each shop sets its own delivery fee
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { user_id, ...rest } = a
     address = rest
   }
-  return { subtotal_kes: subtotal, delivery_fee_kes: fee, total_kes: subtotal + fee, dealer, address }
+  return { subtotal_kes: subtotal, delivery_fee_kes: fee, service_fee_kes: SERVICE_FEE_KES, total_kes: subtotal + fee + SERVICE_FEE_KES, dealer, address }
 }
 
 function dealerOrder(db: MockDb, id: number): MockOrder {
@@ -245,8 +243,7 @@ function dealerOrder(db: MockDb, id: number): MockOrder {
 
 const ALLOWED_DEALER_MOVES: Partial<Record<OrderStatus, OrderStatus[]>> = {
   accepted: ['out_for_delivery', 'ready_for_pickup'],
-  out_for_delivery: ['delivered'],
-  ready_for_pickup: ['collected'],
+  // delivered / collected are set by the customer confirming receipt, not by the dealer.
 }
 
 function myShop(db: MockDb): Dealer {
@@ -313,6 +310,7 @@ export const mockApi: GasgoApi = {
       address: [data.address.trim(), data.landmark_notes.trim()].filter(Boolean).join(' · '),
       opening_hours: data.opening_hours,
       delivery_radius_km: data.delivery_radius_km,
+      delivery_fee_kes: Math.max(0, Math.round(data.delivery_fee_kes)),
       is_open: true,
       // New shops start with no gas listed; the vendor adds their gas types on the Stock screen.
       stock: [],
@@ -381,7 +379,7 @@ export const mockApi: GasgoApi = {
     const db = load()
     const user = currentUser(db)
     const q = computeQuote(db, user.id, req)
-    return { subtotal_kes: q.subtotal_kes, delivery_fee_kes: q.delivery_fee_kes, total_kes: q.total_kes }
+    return { subtotal_kes: q.subtotal_kes, delivery_fee_kes: q.delivery_fee_kes, service_fee_kes: q.service_fee_kes, total_kes: q.total_kes }
   },
 
   async listOrders() {
@@ -426,9 +424,11 @@ export const mockApi: GasgoApi = {
       customer: { name: user.name || 'Customer', phone: user.phone },
       subtotal_kes: q.subtotal_kes,
       delivery_fee_kes: q.delivery_fee_kes,
+      service_fee_kes: q.service_fee_kes,
       total_kes: q.total_kes,
       mpesa_receipt: null,
       cancellation_reason: null,
+      funds_released_at: null,
       refund_due_at: null,
       status_history: [{ status: 'placed', at: now() }],
       created_at: now(),
@@ -453,6 +453,21 @@ export const mockApi: GasgoApi = {
     order.payment_phone = phone
     save(db)
     return { checkout_request_id: `ws_CO_${Date.now()}` }
+  },
+
+  async confirmReceived(id) {
+    await wait()
+    const db = load()
+    const user = currentUser(db)
+    const order = db.orders.find((o) => o.id === id && o.customer_id === user.id)
+    if (!order) throw new ApiError('Order not found.', 404, 'not_found')
+    if (order.status !== 'out_for_delivery' && order.status !== 'ready_for_pickup') {
+      throw new ApiError('You can confirm once the dealer has sent your gas or it is ready for pickup.', 400, 'cannot_confirm')
+    }
+    setStatus(order, order.status === 'out_for_delivery' ? 'delivered' : 'collected')
+    order.funds_released_at = now()
+    save(db)
+    return publicOrder(order)
   },
 
   async cancelOrder(id) {
@@ -514,6 +529,21 @@ export const mockApi: GasgoApi = {
   async getMyShop() {
     await wait(150)
     return structuredClone(myShop(load()))
+  },
+
+  async updateShop(patch) {
+    await wait()
+    const db = load()
+    const shop = myShop(db)
+    if (patch.delivery_fee_kes !== undefined) {
+      if (!Number.isFinite(patch.delivery_fee_kes) || patch.delivery_fee_kes < 0 || patch.delivery_fee_kes > 5000) {
+        throw new ApiError('Enter a delivery fee between KES 0 and 5,000.', 400, 'invalid_fee')
+      }
+      shop.delivery_fee_kes = Math.round(patch.delivery_fee_kes)
+    }
+    if (patch.is_open !== undefined) shop.is_open = patch.is_open
+    save(db)
+    return structuredClone(shop)
   },
 
   async setShopOpen(isOpen) {

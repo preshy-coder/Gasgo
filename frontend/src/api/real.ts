@@ -81,6 +81,7 @@ export const realApi: GasgoApi = {
   createOrder: (req) => request('POST', '/orders/', req),
   payOrder: (id, phone) => request('POST', `/orders/${id}/pay/`, { phone }),
   cancelOrder: (id) => request('POST', `/orders/${id}/cancel/`),
+  confirmReceived: (id) => request('POST', `/orders/${id}/confirm-received/`),
 
   listDealerOrders: async () => unwrap(await request<Order[] | Paginated<Order>>('GET', '/dealer/orders/')),
   dealerAccept: (id) => request('POST', `/dealer/orders/${id}/accept/`),
@@ -89,6 +90,7 @@ export const realApi: GasgoApi = {
 
   getMyShop: () => request('GET', '/dealer/shop/'),
   setShopOpen: (is_open) => request('PATCH', '/dealer/shop/', { is_open }),
+  updateShop: (patch) => request('PATCH', '/dealer/shop/', patch),
   listMyStock: async () => unwrap(await request('GET', '/dealer/stock/')),
   addStock: (item) => request('POST', '/dealer/stock/', item),
   updateStock: (id, data) => request('PATCH', `/dealer/stock/${id}/`, data),

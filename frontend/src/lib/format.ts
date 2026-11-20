@@ -63,6 +63,11 @@ export function isActiveOrder(s: OrderStatus): boolean {
 /** Statuses where the customer's M-Pesa payment has gone through and the order is going ahead. */
 export const PAID_STATUSES: OrderStatus[] = ['paid', 'accepted', 'out_for_delivery', 'ready_for_pickup', 'delivered', 'collected']
 
+/** What the dealer is paid for an order: the gas plus their delivery fee (Gasgo keeps the service fee). */
+export function dealerPayout(o: { subtotal_kes: number; delivery_fee_kes: number }): number {
+  return o.subtotal_kes + o.delivery_fee_kes
+}
+
 /** A paid order that was rejected or cancelled and whose refund hasn't been sent yet. */
 export function awaitingRefund(o: { status: OrderStatus; mpesa_receipt: string | null }): boolean {
   return (o.status === 'rejected_by_dealer' || o.status === 'cancelled') && !!o.mpesa_receipt

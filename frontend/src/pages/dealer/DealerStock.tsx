@@ -2,13 +2,13 @@
 // Customers only see gas types that a shop has in stock, at that shop's price.
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Minus, PackagePlus, Plus, Store, Trash2, X } from 'lucide-react'
+import { Bike, Minus, PackagePlus, Plus, Store, Trash2, X } from 'lucide-react'
 import { errorMessage } from '../../api'
 import { CylinderIcon } from '../../components/CylinderIcon'
 import { DealerShell } from '../../components/DealerShell'
 import { GLASS, GLASS_INPUT, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
 import { Button } from '../../components/ui'
-import { useAddStock, useMyShop, useMyStock, useProducts, useRemoveStock, useSetShopOpen, useUpdateStock } from '../../hooks/queries'
+import { useAddStock, useMyShop, useMyStock, useProducts, useRemoveStock, useSetShopOpen, useUpdateShop, useUpdateStock } from '../../hooks/queries'
 import { formatKes } from '../../lib/format'
 import type { ProductType, StockItem } from '../../types'
 
@@ -70,6 +70,9 @@ export default function DealerStock() {
           </div>
         )}
 
+        {/* Delivery fee: the shop's own charge, separate from gas prices */}
+        {shop.data && <DeliveryFeeCard key={shop.data.id} fee={shop.data.delivery_fee_kes} />}
+
         {/* Summary */}
         {items.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
@@ -117,6 +120,50 @@ export default function DealerStock() {
         ))}
       </div>
     </DealerShell>
+  )
+}
+
+function DeliveryFeeCard({ fee }: { fee: number }) {
+  const update = useUpdateShop()
+  const [value, setValue] = useState(String(fee))
+  const [saved, setSaved] = useState(false)
+  const save = () => {
+    if (value === '' || Number(value) === fee) return setValue(String(fee))
+    update.mutate({ delivery_fee_kes: Number(value) }, { onSuccess: () => setSaved(true) })
+  }
+  return (
+    <div className={`${GLASS} p-4`}>
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-brand-300">
+          <Bike className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">Delivery fee</p>
+          <p className="text-xs text-white/60">{fee === 0 ? 'You deliver for free.' : 'Charged on every delivery order.'}</p>
+        </div>
+        <label className="flex w-28 shrink-0 items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-2.5 py-1.5 focus-within:border-brand-400">
+          <span className="text-xs text-white/50">KES</span>
+          <input
+            aria-label="Delivery fee in KES"
+            inputMode="numeric"
+            className="w-full min-w-0 bg-transparent font-semibold text-white tabular-nums outline-none"
+            value={value}
+            onChange={(e) => {
+              setSaved(false)
+              setValue(e.target.value.replace(/[^\d]/g, '').slice(0, 4))
+            }}
+            onBlur={save}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+          />
+        </label>
+      </div>
+      <p className="mt-2.5 text-xs text-white/50">
+        Customers pay your gas prices plus this fee for delivery (nothing for pickup). Gasgo’s service fee is added on top for the customer and doesn’t come out of
+        your money.
+      </p>
+      {saved && !update.isPending && <p className="mt-1.5 text-xs font-medium text-green-300">Saved. New delivery orders use {formatKes(Number(value))}.</p>}
+      {update.isError && <p className="mt-1.5 text-xs text-red-300">{errorMessage(update.error)}</p>}
+    </div>
   )
 }
 

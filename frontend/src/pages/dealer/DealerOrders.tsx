@@ -7,7 +7,7 @@ import { DealerShell } from '../../components/DealerShell'
 import { GLASS, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
 import { StatusBadge } from '../../components/ui'
 import { useDealerOrders } from '../../hooks/queries'
-import { formatKes, formatTime, productName } from '../../lib/format'
+import { dealerPayout, formatKes, formatTime, productName } from '../../lib/format'
 import type { Order } from '../../types'
 
 type Tab = 'new' | 'active' | 'done'
@@ -64,9 +64,15 @@ export default function DealerOrders() {
                 <p className="font-semibold">{o.order_number}</p>
                 <StatusBadge status={o.status} />
               </div>
+              {(o.status === 'out_for_delivery' || o.status === 'ready_for_pickup') && (
+                <p className="text-xs font-medium text-amber-300">Waiting for customer to confirm</p>
+              )}
+              {(o.status === 'delivered' || o.status === 'collected') && (
+                <p className="text-xs font-medium text-green-300">Confirmed by customer · payment released</p>
+              )}
               <p className="truncate text-sm text-white/75">{o.items.map((i) => `${i.quantity}× ${productName(i.product)}`).join(', ')}</p>
               <p className="text-xs text-white/50">
-                {formatTime(o.created_at)} · {o.type === 'delivery' ? 'Delivery' : 'Pickup'} · {formatKes(o.total_kes)}
+                {formatTime(o.created_at)} · {o.type === 'delivery' ? 'Delivery' : 'Pickup'} · {formatKes(dealerPayout(o))}
               </p>
             </div>
             <ChevronRight className="h-5 w-5 text-white/50" />

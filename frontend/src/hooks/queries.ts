@@ -1,7 +1,7 @@
 // TanStack Query hooks: caching, loading states and refetching for every API call.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api'
-import type { NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem } from '../types'
+import type { NewAddress, NewStockItem, Order, OrderStatus, QuoteRequest, StockItem, ShopUpdate } from '../types'
 import { awaitingRefund, isActiveOrder } from '../lib/format'
 
 export const keys = {
@@ -83,6 +83,7 @@ function useOrderMutation<V>(fn: (v: V) => Promise<Order>) {
 
 export const useCreateOrder = () => useOrderMutation((req: QuoteRequest) => api.createOrder(req))
 export const useCancelOrder = () => useOrderMutation((id: number) => api.cancelOrder(id))
+export const useConfirmReceived = () => useOrderMutation((id: number) => api.confirmReceived(id))
 
 export function usePayOrder() {
   const qc = useQueryClient()
@@ -115,6 +116,11 @@ function useStockInvalidate() {
     qc.invalidateQueries({ queryKey: keys.products })
     qc.invalidateQueries({ queryKey: ['dealers'] })
   }
+}
+
+export function useUpdateShop() {
+  const invalidate = useStockInvalidate()
+  return useMutation({ mutationFn: (patch: ShopUpdate) => api.updateShop(patch), onSuccess: invalidate })
 }
 
 export function useSetShopOpen() {

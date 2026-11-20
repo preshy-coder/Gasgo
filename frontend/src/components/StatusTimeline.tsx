@@ -10,8 +10,15 @@ const STEP_LABEL: Partial<Record<OrderStatus, string>> = { placed: 'Order placed
 const STEP_HINT: Partial<Record<OrderStatus, string>> = {
   paid: 'M-Pesa payment received',
   accepted: 'The dealer is preparing your gas',
-  out_for_delivery: 'Your gas is on the way',
-  ready_for_pickup: 'Go to the dealer to collect',
+  out_for_delivery: 'Your gas is on the way. Confirm below once you have it.',
+  ready_for_pickup: 'Go to the dealer to collect, then confirm below.',
+}
+
+const DEALER_HINT: Partial<Record<OrderStatus, string>> = {
+  paid: 'Accept the order to start',
+  accepted: 'Prepare the gas',
+  out_for_delivery: 'Waiting for the customer to confirm they received it',
+  ready_for_pickup: 'Waiting for the customer to collect and confirm',
 }
 
 const FAILED: OrderStatus[] = ['payment_failed', 'rejected_by_dealer', 'cancelled', 'refunded']
@@ -54,7 +61,9 @@ export function StatusTimeline({ order, forDealer }: { order: Order; forDealer?:
                 <p className={`font-medium ${done ? 'text-ink' : 'text-slate-400'}`}>{STEP_LABEL[step] ?? STATUS_LABEL[step]}</p>
                 {at && <span className="text-xs text-slate-500">{formatTime(at)}</span>}
               </div>
-              {isCurrent && STEP_HINT[step] && <p className="text-sm text-slate-500">{STEP_HINT[step]}</p>}
+              {isCurrent && (forDealer ? DEALER_HINT : STEP_HINT)[step] && (
+                <p className="text-sm text-slate-500">{(forDealer ? DEALER_HINT : STEP_HINT)[step]}</p>
+              )}
             </div>
           </li>
         )

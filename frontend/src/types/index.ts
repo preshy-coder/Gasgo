@@ -72,6 +72,8 @@ export interface Dealer {
   address: string
   opening_hours: string
   delivery_radius_km: number
+  /** The shop's own delivery charge (flat, KES), set by the vendor. Charged on delivery orders only. */
+  delivery_fee_kes: number
   is_open: boolean
   stock: DealerStock[]
   distance_km?: number
@@ -86,6 +88,13 @@ export interface VendorSignup {
   lng: number
   opening_hours: string
   delivery_radius_km: number
+  delivery_fee_kes: number
+}
+
+/** What a vendor can change about their shop (PATCH /dealer/shop/). */
+export interface ShopUpdate {
+  is_open?: boolean
+  delivery_fee_kes?: number
 }
 
 export interface VendorSignupResponse {
@@ -149,9 +158,17 @@ export interface Order {
   customer?: { name: string; phone: string }
   subtotal_kes: number
   delivery_fee_kes: number
+  /** Gasgo's fixed service fee. Kept by Gasgo, not paid out to the dealer. */
+  service_fee_kes: number
   total_kes: number
   mpesa_receipt: string | null
   cancellation_reason: CancellationReason | null
+  /**
+   * When the customer's payment was released to the dealer (null while it is still held).
+   * The money is held from payment until the customer confirms they received the gas
+   * (POST /orders/{id}/confirm-received/), which also moves the order to delivered / collected.
+   */
+  funds_released_at: string | null
   status_history: StatusChange[]
   created_at: string
 }
@@ -169,9 +186,10 @@ export interface QuoteRequest {
 }
 
 export interface Quote {
-  subtotal_kes: number
-  delivery_fee_kes: number
-  total_kes: number
+  subtotal_kes: number // gas, at the shop's prices
+  delivery_fee_kes: number // the shop's delivery fee (0 for pickup)
+  service_fee_kes: number // Gasgo's fixed service fee, the same on every order
+  total_kes: number // subtotal + delivery fee + service fee
 }
 
 export type CreateOrderRequest = QuoteRequest

@@ -8,10 +8,18 @@ const FAQ = [
     q: "What's the difference between a refill and a new cylinder?",
     a: 'A refill swaps your empty cylinder for a full one of the same brand and size. A new cylinder is for first-time buyers: you get the cylinder and the gas.',
   },
+  {
+    q: 'What fees do I pay?',
+    a: 'Three parts: the gas, at the shop’s own price; the shop’s delivery fee (delivery orders only, each shop sets its own); and a small fixed Gasgo service fee. You see all three before you pay.',
+  },
   { q: 'How do I pay?', a: "With M-Pesa. After you place the order, you'll get a prompt on your phone. Enter your PIN to pay." },
   {
     q: 'What if the dealer can’t fulfil my order?',
     a: "If a dealer rejects a paid order, your money is refunded to your M-Pesa. Contact us if it hasn't arrived within 24 hours.",
+  },
+  {
+    q: 'When does the dealer get my money?',
+    a: 'We hold your payment until you have your gas. When it arrives (or when you collect it), open the order and tap “I’ve received my gas”. Only then is the money released to the dealer. If something is wrong, don’t confirm: call or WhatsApp us.',
   },
   { q: 'Can I cancel an order?', a: 'Yes, until the dealer accepts it. Open the order and tap “Cancel order”.' },
   { q: 'Where do you deliver?', a: 'Anywhere in Kenya where a Gasgo shop is nearby. Each shop sets how far it delivers, and you’ll see the shops that can reach your pin. You can also pick up from any shop.' },

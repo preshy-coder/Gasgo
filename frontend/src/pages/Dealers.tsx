@@ -94,6 +94,7 @@ export default function Dealers() {
                   <p className="text-sm text-slate-600">{d.address}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                     <Clock className="h-3.5 w-3.5" /> {d.opening_hours}
+                    {orderType === 'delivery' && <span>· {d.delivery_fee_kes ? `Delivery ${formatKes(d.delivery_fee_kes)}` : 'Free delivery'}</span>}
                   </p>
                   {a.ok ? (
                     <p className="mt-2 flex items-center justify-between gap-2 text-sm font-medium text-green-700">

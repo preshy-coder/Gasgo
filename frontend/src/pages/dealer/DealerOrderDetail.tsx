@@ -1,12 +1,12 @@
 // Dealer view of one order: accept / reject, then move it through the remaining steps.
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { MapPin, Navigation, Phone } from 'lucide-react'
+import { Hourglass, MapPin, Navigation, Phone, Wallet } from 'lucide-react'
 import { errorMessage } from '../../api'
 import { StatusTimeline } from '../../components/StatusTimeline'
 import { BottomBar, Button, Card, ErrorBox, PageHeader, Spinner, StatusBadge } from '../../components/ui'
 import { useDealerAccept, useDealerReject, useDealerSetStatus, useOrder } from '../../hooks/queries'
-import { displayPhone, formatKes, productName, productTypeLabel } from '../../lib/format'
+import { dealerPayout, displayPhone, formatKes, productName, productTypeLabel } from '../../lib/format'
 import type { OrderStatus } from '../../types'
 
 const REJECT_REASONS = ['Out of stock', 'Too far to deliver', 'Closing soon', 'Other']
@@ -33,8 +33,9 @@ export default function DealerOrderDetail() {
   let next: { status: OrderStatus; label: string } | null = null
   if (o.status === 'accepted') {
     next = o.type === 'delivery' ? { status: 'out_for_delivery', label: 'Send out for delivery' } : { status: 'ready_for_pickup', label: 'Mark ready for pickup' }
-  } else if (o.status === 'out_for_delivery') next = { status: 'delivered', label: 'Mark as delivered' }
-  else if (o.status === 'ready_for_pickup') next = { status: 'collected', label: 'Mark as collected' }
+  }
+  // After that, only the customer can complete the order (confirming receipt releases the payment).
+  const awaitingCustomer = o.status === 'out_for_delivery' || o.status === 'ready_for_pickup'
 
   return (
     <div className="flex min-h-full flex-col">
@@ -55,10 +56,23 @@ export default function DealerOrderDetail() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 border-t border-slate-100 pt-2 text-sm">
-            Paid {formatKes(o.total_kes)}
-            {o.mpesa_receipt && <span className="text-slate-500"> · {o.mpesa_receipt}</span>}
-          </p>
+          <dl className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-slate-500">Gas</dt>
+              <dd className="tabular-nums">{formatKes(o.subtotal_kes)}</dd>
+            </div>
+            {o.type === 'delivery' && (
+              <div className="flex justify-between">
+                <dt className="text-slate-500">Your delivery fee</dt>
+                <dd className="tabular-nums">{formatKes(o.delivery_fee_kes)}</dd>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-slate-100 pt-1 font-semibold">
+              <dt>You receive</dt>
+              <dd className="tabular-nums">{formatKes(dealerPayout(o))}</dd>
+            </div>
+            {o.mpesa_receipt && <p className="text-xs text-slate-500">Customer paid with M-Pesa · {o.mpesa_receipt}</p>}
+          </dl>
         </Card>
 
         <Card>
@@ -93,6 +107,28 @@ export default function DealerOrderDetail() {
         <Card>
           <StatusTimeline order={o} forDealer />
         </Card>
+
+        {awaitingCustomer && (
+          <div role="status" className="flex gap-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+            <Hourglass className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-semibold">{o.type === 'delivery' ? 'Waiting for the customer to confirm delivery' : 'Waiting for the customer to collect'}</p>
+              <p className="mt-0.5">
+                {o.type === 'delivery' ? 'Hand over the gas and ask the customer to tap “I’ve received my gas” in their app.' : 'When the customer collects, ask them to tap “I’ve collected my gas” in their app.'} The{' '}
+                {formatKes(dealerPayout(o))} payment is released to you once they confirm.
+              </p>
+            </div>
+          </div>
+        )}
+        {(o.status === 'delivered' || o.status === 'collected') && (
+          <div role="status" className="flex gap-3 rounded-xl bg-green-50 p-3 text-sm text-green-900 ring-1 ring-green-200">
+            <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-green-600" />
+            <div>
+              <p className="font-semibold">{o.status === 'delivered' ? 'Delivered: confirmed by the customer' : 'Collected: confirmed by the customer'}</p>
+              <p className="mt-0.5">{formatKes(dealerPayout(o))} has been released to you.</p>
+            </div>
+          </div>
+        )}
 
         {o.cancellation_reason === 'dealer_timeout' && (o.status === 'cancelled' || o.status === 'refunded') && (
           <div role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
