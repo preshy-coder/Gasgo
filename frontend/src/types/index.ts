@@ -44,6 +44,8 @@ export interface DealerStock {
   quantity: number
   /** This shop's price for this gas type */
   price_kes: number
+  /** This shop's delivery fee when this gas type is ordered for delivery. 0 = free delivery. */
+  delivery_fee_kes: number
 }
 
 /** One line of a vendor's own stock list. */
@@ -52,15 +54,18 @@ export interface StockItem {
   product: Product
   quantity: number
   price_kes: number
+  delivery_fee_kes: number // 0 = free delivery
 }
 
-/** What a vendor enters to add a gas type to their shop. The brand is typed by the vendor. */
+/** What a vendor enters to add a gas type to their shop. Brand and size are typed by the vendor. */
 export interface NewStockItem {
   brand: string
   size_kg: number
   type: ProductType
   price_kes: number
   quantity: number
+  /** Delivery fee for this gas type; 0 = free delivery. */
+  delivery_fee_kes: number
 }
 
 export interface Dealer {
@@ -72,8 +77,6 @@ export interface Dealer {
   address: string
   opening_hours: string
   delivery_radius_km: number
-  /** The shop's own delivery charge (flat, KES), set by the vendor. Charged on delivery orders only. */
-  delivery_fee_kes: number
   is_open: boolean
   stock: DealerStock[]
   /** Gas equipment the shop sells (the vendor's Market). */
@@ -100,13 +103,11 @@ export interface VendorSignup {
   lng: number
   opening_hours: string
   delivery_radius_km: number
-  delivery_fee_kes: number
 }
 
 /** What a vendor can change about their shop (PATCH /dealer/shop/). */
 export interface ShopUpdate {
   is_open?: boolean
-  delivery_fee_kes?: number
 }
 
 export interface VendorSignupResponse {
@@ -222,7 +223,7 @@ export interface QuoteRequest {
 export interface Quote {
   subtotal_kes: number // gas, at the shop's prices
   accessories_kes: number // equipment from the same shop (0 if none)
-  delivery_fee_kes: number // the shop's delivery fee (0 for pickup)
+  delivery_fee_kes: number // highest delivery fee among the gas types ordered (0 if all are free, and for pickup)
   service_fee_kes: number // Gasgo's fixed service fee, the same on every order
   total_kes: number // subtotal + accessories + delivery fee + service fee
 }

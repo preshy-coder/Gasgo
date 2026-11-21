@@ -66,7 +66,7 @@ export interface GasgoApi {
   updateShop(patch: ShopUpdate): Promise<Dealer>
   listMyStock(): Promise<StockItem[]>
   addStock(item: NewStockItem): Promise<StockItem>
-  updateStock(id: number, data: Partial<Pick<StockItem, 'quantity' | 'price_kes'>>): Promise<StockItem>
+  updateStock(id: number, data: Partial<Pick<StockItem, 'quantity' | 'price_kes' | 'delivery_fee_kes'>>): Promise<StockItem>
   removeStock(id: number): Promise<void>
 
   // Vendor market: gas equipment (regulators, hoses, lighters, grills) from a fixed list

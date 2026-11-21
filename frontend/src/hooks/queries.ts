@@ -138,7 +138,7 @@ export function useUpdateStock() {
   const qc = useQueryClient()
   const invalidate = useStockInvalidate()
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: number } & Partial<Pick<StockItem, 'quantity' | 'price_kes'>>) => api.updateStock(id, data),
+    mutationFn: ({ id, ...data }: { id: number } & Partial<Pick<StockItem, 'quantity' | 'price_kes' | 'delivery_fee_kes'>>) => api.updateStock(id, data),
     // Update the list straight away so +/- feels instant; the server copy replaces it after.
     onMutate: ({ id, ...data }) => {
       qc.setQueryData<StockItem[]>(keys.myStock, (old) => old?.map((it) => (it.id === id ? { ...it, ...data } : it)))

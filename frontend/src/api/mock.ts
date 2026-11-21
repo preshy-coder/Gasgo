@@ -30,7 +30,6 @@ import type {
 } from '../types'
 import { ApiError, type GasgoApi } from './types'
 import { OUTSIDE_AREA_MESSAGE, isInServiceArea } from '../lib/serviceArea'
-import { GAS_SIZES, catalogBrand } from '../lib/catalog'
 
 export const MOCK_OTP = '123456'
 export const MOCK_DEALER_PHONE = '254700000001'
@@ -39,7 +38,7 @@ const PAYMENT_DELAY_MS = 4000
 const DEALER_TIMEOUT_MS = 3 * 60_000
 /** Demo: how long after a rejection/cancellation the M-Pesa refund "arrives". */
 const REFUND_DELAY_MS = 8000
-const KEY = 'gasgo-mock-db-v6' // bump the version when the seed data changes
+const KEY = 'gasgo-mock-db-v7' // bump the version when the seed data changes
 
 interface MockOrder extends Order {
   customer_id: number
@@ -93,17 +92,24 @@ const productKey = (p: Pick<Product, 'brand' | 'size_kg' | 'type'>) => `${p.bran
 /**
  * Builds a shop's stock list: every size/type of the given brands (optionally only some sizes),
  * at the reference price plus `offset` KES. `tweak` sets the quantity of a few items,
- * keyed "Brand|size|type", e.g. { 'K-Gas|6|new_cylinder': 2 }.
+ * keyed "Brand|size|type", e.g. { 'K-Gas|6|new_cylinder': 2 }. `fee` is the delivery fee (KES 100 more
+ * for 22.5 kg and up); `free` picks gas types delivered for free.
  */
 function stockFor(
   brands: string[],
   qty: number,
   offset = 0,
-  opts: { refillOnly?: boolean; sizes?: number[]; tweak?: Record<string, number> } = {},
+  opts: { refillOnly?: boolean; sizes?: number[]; tweak?: Record<string, number>; fee?: number; free?: (p: Product) => boolean } = {},
 ) {
   return PRODUCTS.filter(
     (p) => brands.includes(p.brand) && (!opts.refillOnly || p.type === 'refill') && (!opts.sizes || opts.sizes.includes(p.size_kg)),
-  ).map((p) => ({ product_id: p.id, quantity: opts.tweak?.[productKey(p)] ?? qty, price_kes: p.price_kes + offset }))
+  ).map((p) => ({
+    product_id: p.id,
+    quantity: opts.tweak?.[productKey(p)] ?? qty,
+    price_kes: p.price_kes + offset,
+    // Each gas type has its own delivery fee: bigger cylinders cost more to deliver, and some are delivered free.
+    delivery_fee_kes: opts.free?.(p) ? 0 : (opts.fee ?? 150) + (p.size_kg >= 22.5 ? 100 : 0),
+  }))
 }
 
 const acc = (regulator: number | null, hosePerM: number | null, lighter: number | null, grill: number | null, out: AccessoryKind[] = []): DealerAccessory[] =>
@@ -120,11 +126,11 @@ const acc = (regulator: number | null, hosePerM: number | null, lighter: number 
 
 // Demo dealers around Nairobi and Thika Road (fictional names, approximate locations).
 const DEALERS: Dealer[] = [
-  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: true, stock: stockFor(['K-Gas', 'Total Gas', 'ProGas', 'Shell Afrigas'], 12, 0, { tweak: { 'K-Gas|6|new_cylinder': 2, 'ProGas|22.5|new_cylinder': 0 } }), accessories: acc(1200, 150, 250, 1800) },
-  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, delivery_fee_kes: 200, is_open: true, stock: stockFor(['K-Gas', 'ProGas', 'Hashi Gas', 'Oryx Gas'], 6, -50, { refillOnly: true, sizes: [3, 6, 13] }), accessories: acc(1100, 180, null, null) },
-  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, delivery_fee_kes: 120, is_open: true, stock: stockFor(['Total Gas', 'K-Gas', 'Shell Afrigas', 'Taifa Gas', 'SupaGas'], 9, 50), accessories: acc(1350, 160, 300, 2100, ['grill']) },
-  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, delivery_fee_kes: 100, is_open: true, stock: stockFor(['ProGas', 'Hashi Gas', 'Lake Gas', 'MenGas'], 5, -30), accessories: acc(1000, 120, 200, null) },
-  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, delivery_fee_kes: 150, is_open: false, stock: stockFor(['K-Gas', 'Total Gas'], 4), accessories: [] },
+  { id: 1, name: 'Gasgo Demo Dealer', phone: '254700000001', lat: -1.2841, lng: 36.8233, address: 'Moi Avenue, Nairobi CBD', opening_hours: 'Mon–Sun 7:00–21:00', delivery_radius_km: 8, is_open: true, stock: stockFor(['K-Gas', 'Total Gas', 'ProGas', 'Shell Afrigas'], 12, 0, { tweak: { 'K-Gas|6|new_cylinder': 2, 'ProGas|22.5|new_cylinder': 0 }, fee: 150, free: (p) => p.size_kg === 13 && p.type === 'refill' }), accessories: acc(1200, 150, 250, 1800) },
+  { id: 2, name: 'Westlands Gas Point', phone: '254711000002', lat: -1.2676, lng: 36.8108, address: 'Woodvale Grove, Westlands', opening_hours: 'Mon–Sat 7:30–20:00', delivery_radius_km: 6, is_open: true, stock: stockFor(['K-Gas', 'ProGas', 'Hashi Gas', 'Oryx Gas'], 6, -50, { refillOnly: true, sizes: [3, 6, 13], fee: 200 }), accessories: acc(1100, 180, null, null) },
+  { id: 3, name: 'Kilimani Gas Centre', phone: '254722000003', lat: -1.2921, lng: 36.7856, address: 'Argwings Kodhek Rd, Kilimani', opening_hours: 'Mon–Sun 6:30–22:00', delivery_radius_km: 7, is_open: true, stock: stockFor(['Total Gas', 'K-Gas', 'Shell Afrigas', 'Taifa Gas', 'SupaGas'], 9, 50, { fee: 120, free: (p) => p.type === 'new_cylinder' }), accessories: acc(1350, 160, 300, 2100, ['grill']) },
+  { id: 4, name: 'Ruiru Gas Shop', phone: '254744000005', lat: -1.146, lng: 36.96, address: 'Ruiru Town, off Thika Rd', opening_hours: 'Mon–Sun 7:00–20:00', delivery_radius_km: 10, is_open: true, stock: stockFor(['ProGas', 'Hashi Gas', 'Lake Gas', 'MenGas'], 5, -30, { fee: 100 }), accessories: acc(1000, 120, 200, null) },
+  { id: 5, name: 'Thika Energies', phone: '254733000004', lat: -1.0333, lng: 37.0693, address: 'Kenyatta Hwy, Thika', opening_hours: 'Mon–Sat 8:00–19:00', delivery_radius_km: 8, is_open: false, stock: stockFor(['K-Gas', 'Total Gas'], 4, 0, { fee: 150 }), accessories: [] },
 ]
 
 const ACCESSORY_NAMES: Record<AccessoryKind, string> = { regulator: 'Gas regulator', hose: 'Gas hose pipe', lighter: 'Gas lighter', grill: 'Gas grill' }
@@ -155,7 +161,7 @@ function seedHistory(nextId: () => number): MockOrder[] {
       const at = new Date(today.getTime() - d * day + (8 + rand() * 12) * 3_600_000).toISOString()
       const subtotal = st.price_kes * quantity
       const accessoriesKes = accessories.reduce((s, a) => s + a.total_kes, 0)
-      const fee = delivery ? dealer.delivery_fee_kes : 0
+      const fee = delivery ? st.delivery_fee_kes : 0
       const id = nextId()
       orders.push({
         id,
@@ -331,7 +337,8 @@ function computeQuote(db: MockDb, userId: number, req: QuoteRequest): Quote & { 
     if (km > dealer.delivery_radius_km) {
       throw new ApiError(`${dealer.name} doesn't deliver that far (${km.toFixed(1)} km).`, 400, 'out_of_range')
     }
-    fee = dealer.delivery_fee_kes ?? 0 // each shop sets its own delivery fee
+    // Each gas type has its own delivery fee (0 = free). One trip, so the order pays the highest of them.
+    fee = Math.max(0, ...req.items.map((line) => dealer.stock.find((st) => st.product_id === line.product_id)?.delivery_fee_kes ?? 0))
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { user_id, ...rest } = a
     address = rest
@@ -390,7 +397,7 @@ function myShop(db: MockDb): Dealer {
 
 function stockItem(db: MockDb, st: DealerStock): StockItem {
   const product = db.products.find((p) => p.id === st.product_id)!
-  return { id: st.product_id, product: { ...product, price_kes: st.price_kes }, quantity: st.quantity, price_kes: st.price_kes }
+  return { id: st.product_id, product: { ...product, price_kes: st.price_kes }, quantity: st.quantity, price_kes: st.price_kes, delivery_fee_kes: st.delivery_fee_kes ?? 0 }
 }
 
 const sameBrand = (a: string, b: string) => a.replace(/[\s-]/g, '').toLowerCase() === b.replace(/[\s-]/g, '').toLowerCase()
@@ -493,7 +500,6 @@ export const mockApi: GasgoApi = {
       address: [data.address.trim(), data.landmark_notes.trim()].filter(Boolean).join(' · '),
       opening_hours: data.opening_hours,
       delivery_radius_km: data.delivery_radius_km,
-      delivery_fee_kes: Math.max(0, Math.round(data.delivery_fee_kes)),
       is_open: true,
       // New shops start with no gas listed; the vendor adds their gas types on the Stock screen.
       stock: [],
@@ -723,12 +729,6 @@ export const mockApi: GasgoApi = {
     await wait()
     const db = load()
     const shop = myShop(db)
-    if (patch.delivery_fee_kes !== undefined) {
-      if (!Number.isFinite(patch.delivery_fee_kes) || patch.delivery_fee_kes < 0 || patch.delivery_fee_kes > 5000) {
-        throw new ApiError('Enter a delivery fee between KES 0 and 5,000.', 400, 'invalid_fee')
-      }
-      shop.delivery_fee_kes = Math.round(patch.delivery_fee_kes)
-    }
     if (patch.is_open !== undefined) shop.is_open = patch.is_open
     save(db)
     return structuredClone(shop)
@@ -753,21 +753,25 @@ export const mockApi: GasgoApi = {
     await wait()
     const db = load()
     const shop = myShop(db)
-    const brand = catalogBrand(item.brand)
-    if (!brand) throw new ApiError('Choose a gas brand from the list.', 400, 'invalid_brand')
-    if (!(GAS_SIZES as readonly number[]).includes(item.size_kg)) throw new ApiError('Choose one of the cylinder sizes.', 400, 'invalid_size')
+    const brand = item.brand.trim().replace(/\s+/g, ' ')
+    if (brand.length < 2) throw new ApiError('Type the gas brand, e.g. K-Gas.', 400, 'invalid_brand')
+    if (!(item.size_kg > 0 && item.size_kg <= 100)) throw new ApiError('Enter the cylinder size in kg (up to 100).', 400, 'invalid_size')
+    const sizeKg = Math.round(item.size_kg * 10) / 10
     if (!(item.price_kes > 0)) throw new ApiError('Enter the price in KES.', 400, 'invalid')
+    if (!(item.delivery_fee_kes >= 0 && item.delivery_fee_kes <= 5000)) throw new ApiError('Enter a delivery fee between KES 0 and 5,000.', 400, 'invalid_fee')
     if (item.quantity < 0) throw new ApiError('Quantity cannot be negative.', 400, 'invalid')
     // Re-use the catalogue entry if this brand/size/type already exists (e.g. "Kgas" = "K-Gas").
-    let product = db.products.find((p) => sameBrand(p.brand, brand) && p.size_kg === item.size_kg && p.type === item.type)
+    let product = db.products.find((p) => sameBrand(p.brand, brand) && p.size_kg === sizeKg && p.type === item.type)
     if (!product) {
-      product = { id: db.nextId++, brand, size_kg: item.size_kg, type: item.type, price_kes: item.price_kes, image_url: null, is_active: true }
+      // A brand already in the system keeps its spelling ("kgas" → "K-Gas").
+      const known = db.products.find((p) => sameBrand(p.brand, brand))?.brand ?? brand
+      product = { id: db.nextId++, brand: known, size_kg: sizeKg, type: item.type, price_kes: item.price_kes, image_url: null, is_active: true }
       db.products.push(product)
     }
     if (shop.stock.some((st) => st.product_id === product.id)) {
       throw new ApiError(`${product.brand} ${product.size_kg}kg ${item.type === 'refill' ? 'refill' : 'new cylinder'} is already in your stock. Update it below instead.`, 400, 'duplicate')
     }
-    const st = { product_id: product.id, quantity: Math.floor(item.quantity), price_kes: Math.round(item.price_kes) }
+    const st = { product_id: product.id, quantity: Math.floor(item.quantity), price_kes: Math.round(item.price_kes), delivery_fee_kes: Math.round(item.delivery_fee_kes) }
     shop.stock.push(st)
     save(db)
     return stockItem(db, st)
@@ -785,6 +789,10 @@ export const mockApi: GasgoApi = {
     if (data.price_kes !== undefined) {
       if (!(data.price_kes > 0)) throw new ApiError('Enter a price above 0.', 400, 'invalid')
       st.price_kes = Math.round(data.price_kes)
+    }
+    if (data.delivery_fee_kes !== undefined) {
+      if (!(data.delivery_fee_kes >= 0 && data.delivery_fee_kes <= 5000)) throw new ApiError('Enter a delivery fee between KES 0 and 5,000.', 400, 'invalid_fee')
+      st.delivery_fee_kes = Math.round(data.delivery_fee_kes)
     }
     save(db)
     return stockItem(db, st)

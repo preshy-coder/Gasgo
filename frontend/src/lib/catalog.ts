@@ -1,42 +1,7 @@
-// Fixed lists vendors and customers pick from, so nobody has to type brand names or sizes.
-// The backend must accept exactly these values (same spelling) — keep both lists in sync.
+// Shared lists: common cylinder sizes and the gas equipment shops can sell.
 import type { AccessoryKind } from '../types'
 
-/** Gas brands sold in Kenya. Vendors pick theirs from this list and only enter prices. */
-export const GAS_BRANDS = [
-  'Shell Afrigas',
-  'Total Gas',
-  'K-Gas',
-  'ProGas',
-  'Taifa Gas',
-  'Hashi Gas',
-  'Lake Gas',
-  'Ola Mpishi',
-  'SupaGas',
-  'Hass Gas',
-  'Sea Gas',
-  'Jatel Gas',
-  'Oryx Gas',
-  'MenGas',
-  'G-Gas',
-  'Texgas',
-  'City Gas',
-  'Salama Gas',
-  'Swift Gas',
-  'Royal Gas',
-  'Jamii Gas',
-  'Alfa Gas',
-  'Kendy Gas',
-  'Kento Gas',
-  'Hunkar Gas',
-  'Maxgas',
-  'Moto Gas',
-  'Amaan Gas',
-  'Homegas',
-  'Topgas',
-] as const
-
-/** Cylinder sizes in kg. */
+/** Common cylinder sizes in kg, always shown to customers. Vendors can also sell other sizes. */
 export const GAS_SIZES = [3, 6, 13, 22.5, 35, 50] as const
 
 export interface AccessoryInfo {
@@ -79,9 +44,3 @@ export const accessoryInfo = (kind: AccessoryKind) => ACCESSORIES.find((a) => a.
 
 /** "22.5 kg" style label. */
 export const sizeLabel = (kg: number) => `${kg} kg`
-
-/** Matches the catalogue spelling ignoring case, spaces and dashes ("kgas" → "K-Gas"). */
-export function catalogBrand(input: string): string | undefined {
-  const norm = (s: string) => s.replace(/[\s-]/g, '').toLowerCase()
-  return GAS_BRANDS.find((b) => norm(b) === norm(input))
-}

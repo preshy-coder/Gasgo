@@ -6,11 +6,9 @@ import { Bike, Minus, PackagePlus, Plus, Store, Trash2, X } from 'lucide-react'
 import { errorMessage } from '../../api'
 import { CylinderIcon } from '../../components/CylinderIcon'
 import { DealerShell } from '../../components/DealerShell'
-import { GLASS, GLASS_FLAT, GLASS_INPUT, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
-import { GlassSelect } from '../../components/GlassSelect'
-import { GAS_BRANDS, GAS_SIZES, sizeLabel } from '../../lib/catalog'
+import { GLASS, GLASS_INPUT, GlassEmpty, GlassError, GlassSpinner } from '../../components/glass'
 import { Button } from '../../components/ui'
-import { useAddStock, useMyShop, useMyStock, useRemoveStock, useSetShopOpen, useUpdateShop, useUpdateStock } from '../../hooks/queries'
+import { useAddStock, useMyShop, useMyStock, useProducts, useRemoveStock, useSetShopOpen, useUpdateStock } from '../../hooks/queries'
 import { formatKes } from '../../lib/format'
 import type { ProductType, StockItem } from '../../types'
 
@@ -77,9 +75,6 @@ export default function DealerStock() {
           </div>
         )}
 
-        {/* Delivery fee: the shop's own charge, separate from gas prices */}
-        {shop.data && <DeliveryFeeCard key={shop.data.id} fee={shop.data.delivery_fee_kes} />}
-
         {/* Summary */}
         {items.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
@@ -103,7 +98,11 @@ export default function DealerStock() {
         {stock.isPending && <GlassSpinner />}
         {stock.isError && <GlassError message={errorMessage(stock.error)} onRetry={() => stock.refetch()} />}
         {stock.isSuccess && items.length === 0 && !adding && (
-          <GlassEmpty icon={<PackagePlus className="h-6 w-6" />} title="No gas listed yet" text="Add each brand and size you sell, e.g. K-Gas 6 kg refill." />
+          <GlassEmpty
+            icon={<PackagePlus className="h-6 w-6" />}
+            title="No gas listed yet"
+            text="Add each brand and size you sell, with your price and delivery fee."
+          />
         )}
 
         {groups.map(([brand, list]) => (
@@ -123,50 +122,6 @@ export default function DealerStock() {
         ))}
       </div>
     </DealerShell>
-  )
-}
-
-function DeliveryFeeCard({ fee }: { fee: number }) {
-  const update = useUpdateShop()
-  const [value, setValue] = useState(String(fee))
-  const [saved, setSaved] = useState(false)
-  const save = () => {
-    if (value === '' || Number(value) === fee) return setValue(String(fee))
-    update.mutate({ delivery_fee_kes: Number(value) }, { onSuccess: () => setSaved(true) })
-  }
-  return (
-    <div className={`${GLASS} p-4`}>
-      <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10 text-brand-300">
-          <Bike className="h-5 w-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">Delivery fee</p>
-          <p className="text-xs text-white/60">{fee === 0 ? 'You deliver for free.' : 'Charged on every delivery order.'}</p>
-        </div>
-        <label className="flex w-28 shrink-0 items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-2.5 py-1.5 focus-within:border-brand-400">
-          <span className="text-xs text-white/50">KES</span>
-          <input
-            aria-label="Delivery fee in KES"
-            inputMode="numeric"
-            className="w-full min-w-0 bg-transparent font-semibold text-white tabular-nums outline-none"
-            value={value}
-            onChange={(e) => {
-              setSaved(false)
-              setValue(e.target.value.replace(/[^\d]/g, '').slice(0, 4))
-            }}
-            onBlur={save}
-            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
-          />
-        </label>
-      </div>
-      <p className="mt-2.5 text-xs text-white/50">
-        Customers pay your gas prices plus this fee for delivery (nothing for pickup). Gasgo’s service fee is added on top for the customer and doesn’t come out
-        of your money.
-      </p>
-      {saved && !update.isPending && <p className="mt-1.5 text-xs font-medium text-green-300">Saved. New delivery orders use {formatKes(Number(value))}.</p>}
-      {update.isError && <p className="mt-1.5 text-xs text-red-300">{errorMessage(update.error)}</p>}
-    </div>
   )
 }
 
@@ -268,40 +223,88 @@ function StockRow({ item }: { item: StockItem }) {
           </button>
         </div>
       </div>
+      <DeliveryRow item={item} onSave={(fee) => update.mutate({ id: item.id, delivery_fee_kes: fee })} />
       {update.isError && <p className="mt-1.5 pl-[52px] text-xs text-red-300">{errorMessage(update.error)}</p>}
     </li>
   )
 }
 
+/** This gas type's delivery fee: a KES amount, or free delivery. */
+function DeliveryRow({ item, onSave }: { item: StockItem; onSave: (fee: number) => void }) {
+  const [fee, setFee] = useState(item.delivery_fee_kes > 0 ? String(item.delivery_fee_kes) : '')
+  const free = item.delivery_fee_kes === 0
+  const save = () => {
+    const n = Number(fee)
+    if (fee === '' || n === item.delivery_fee_kes) return setFee(item.delivery_fee_kes > 0 ? String(item.delivery_fee_kes) : '')
+    onSave(Math.round(n))
+  }
+  return (
+    <div className="mt-2 flex items-center gap-2 pl-[52px] text-sm">
+      <Bike className="h-4 w-4 shrink-0 text-white/50" aria-hidden />
+      <span className="text-white/60">Delivery</span>
+      {free ? (
+        <span className="rounded-full border border-green-400/40 bg-green-500/15 px-2.5 py-0.5 text-xs font-semibold text-green-200">Free</span>
+      ) : (
+        <label className="flex w-24 items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-0.5 focus-within:border-brand-400">
+          <span className="text-[11px] text-white/50">KES</span>
+          <input
+            aria-label={`Delivery fee for ${item.product.brand} ${item.product.size_kg}kg`}
+            inputMode="numeric"
+            className="w-full min-w-0 bg-transparent font-semibold text-white tabular-nums outline-none"
+            value={fee}
+            onChange={(e) => setFee(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+            onBlur={save}
+            onKeyDown={(e) => e.key === 'Enter' && (e.currentTarget as HTMLInputElement).blur()}
+          />
+        </label>
+      )}
+      <button
+        type="button"
+        className="ml-auto text-xs font-semibold text-brand-300"
+        onClick={() => {
+          if (free) {
+            setFee('150')
+            onSave(150)
+          } else onSave(0)
+        }}
+      >
+        {free ? 'Charge a fee' : 'Make free'}
+      </button>
+    </div>
+  )
+}
+
 function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: string[] }) {
   const add = useAddStock()
-  const [brand, setBrand] = useState<string | null>(null)
-  const [size, setSize] = useState<number | null>(null)
+  const catalogue = useProducts()
+  const [brand, setBrand] = useState('')
+  const [size, setSize] = useState('')
   const [type, setType] = useState<ProductType>('refill')
   const [price, setPrice] = useState('')
   const [qty, setQty] = useState('')
+  const [freeDelivery, setFreeDelivery] = useState(false)
+  const [fee, setFee] = useState('')
   const [error, setError] = useState('')
 
-  // Brands the shop already sells come first, then the rest of the list A–Z.
-  const brandOptions = useMemo(
-    () => [...GAS_BRANDS].sort((a, b) => Number(ownBrands.includes(b)) - Number(ownBrands.includes(a)) || a.localeCompare(b)),
-    [ownBrands],
-  )
-  const sizeKg = size ?? 0
+  // Brands already in the app, offered as you type (you can still type any brand).
+  const known = useMemo(() => [...new Set([...ownBrands, ...(catalogue.data?.map((p) => p.brand) ?? [])])].sort(), [ownBrands, catalogue.data])
+  const sizeKg = Number(size)
 
   const save = async () => {
     setError('')
-    if (!brand) return setError('Choose the gas brand from the list.')
-    if (!size) return setError('Choose the cylinder size.')
+    if (brand.trim().length < 2) return setError('Type the gas brand, e.g. K-Gas.')
+    if (!(sizeKg > 0 && sizeKg <= 100)) return setError('Type the cylinder size in kg, e.g. 13.')
     if (!(Number(price) > 0)) return setError('Enter your price in KES.')
     if (qty === '' || Number(qty) < 0) return setError('Enter how many cylinders you have (0 if none right now).')
+    if (!freeDelivery && fee === '') return setError('Enter the delivery fee, or choose free delivery.')
     try {
       await add.mutateAsync({
-        brand,
-        size_kg: size,
+        brand: brand.trim(),
+        size_kg: sizeKg,
         type,
         price_kes: Number(price),
         quantity: Number(qty),
+        delivery_fee_kes: freeDelivery ? 0 : Number(fee),
       })
       onClose()
     } catch (e) {
@@ -318,16 +321,15 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
   const label = 'mb-1.5 block px-1 text-xs font-semibold tracking-[0.18em] text-white/60 uppercase'
 
   return (
-    // Flat glass (no backdrop blur) so the brand dropdown inside can blur what's behind it.
     <form
       noValidate
-      className={`${GLASS_FLAT} relative z-20 space-y-4 p-4`}
+      className={`${GLASS} relative space-y-4 overflow-hidden p-4`}
       onSubmit={(e) => {
         e.preventDefault()
         save()
       }}
     >
-      <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1 rounded-t-2xl" />
+      <span aria-hidden className="bg-brand-gradient absolute inset-x-0 top-0 h-1" />
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Add a gas type</h2>
         <button type="button" aria-label="Close" className="rounded-full p-1.5 text-white/60 hover:bg-white/10" onClick={onClose}>
@@ -335,29 +337,39 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
         </button>
       </div>
 
-      <GlassSelect
-        tone="dark"
-        label="Brand"
-        placeholder="Search or choose the brand"
-        searchable
-        searchPlaceholder="Search brands, e.g. K-Gas"
-        value={brand}
-        onChange={setBrand}
-        options={brandOptions.map((b) => ({
-          value: b,
-          label: b,
-          description: ownBrands.includes(b) ? 'You already sell this brand' : undefined,
-        }))}
-      />
-
-      <div>
-        <p className={label}>Cylinder size</p>
-        <div className="flex flex-wrap gap-2">
-          {GAS_SIZES.map((s) => (
-            <button key={s} type="button" className={chip(size === s)} onClick={() => setSize(s)}>
-              {sizeLabel(s)}
-            </button>
-          ))}
+      <div className="grid grid-cols-[1fr_7rem] gap-3">
+        <div>
+          <label className={label} htmlFor="brand">
+            Brand
+          </label>
+          <input
+            id="brand"
+            list="gas-brands"
+            autoFocus
+            autoComplete="off"
+            className={GLASS_INPUT}
+            placeholder="e.g. K-Gas"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+          />
+          <datalist id="gas-brands">
+            {known.map((b) => (
+              <option key={b} value={b} />
+            ))}
+          </datalist>
+        </div>
+        <div>
+          <label className={label} htmlFor="size">
+            Size (kg)
+          </label>
+          <input
+            id="size"
+            inputMode="decimal"
+            className={GLASS_INPUT}
+            placeholder="e.g. 13"
+            value={size}
+            onChange={(e) => setSize(e.target.value.replace(/[^\d.]/g, '').slice(0, 5))}
+          />
         </div>
       </div>
 
@@ -402,13 +414,54 @@ function AddGasForm({ onClose, ownBrands }: { onClose: () => void; ownBrands: st
         </div>
       </div>
 
-      {price && Number(price) > 0 && brand && sizeKg > 0 && (
+      <div>
+        <p className={label}>Delivery for this gas</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={chip(!freeDelivery)}
+            onClick={() => {
+              setFreeDelivery(false)
+              setError('')
+            }}
+          >
+            Charge a fee
+          </button>
+          <button
+            type="button"
+            className={chip(freeDelivery)}
+            onClick={() => {
+              setFreeDelivery(true)
+              setError('')
+            }}
+          >
+            Free delivery
+          </button>
+        </div>
+        {!freeDelivery && (
+          <label className="mt-2 flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2.5 focus-within:border-brand-400">
+            <span className="text-sm text-white/50">KES</span>
+            <input
+              aria-label="Delivery fee in KES"
+              inputMode="numeric"
+              className="w-full min-w-0 bg-transparent text-white tabular-nums outline-none placeholder:text-white/40"
+              placeholder="Delivery fee, e.g. 150"
+              value={fee}
+              onChange={(e) => setFee(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
+            />
+          </label>
+        )}
+        <p className="mt-1.5 px-1 text-xs text-white/50">Only for delivery orders. Pickup is always free.</p>
+      </div>
+
+      {price && Number(price) > 0 && brand.trim() && sizeKg > 0 && (
         <p className="text-sm text-white/65">
           Customers will see:{' '}
           <b className="text-white">
-            {brand} {sizeKg}kg {type === 'refill' ? 'refill' : 'new cylinder'}
+            {brand.trim()} {sizeKg}kg {type === 'refill' ? 'refill' : 'new cylinder'}
           </b>{' '}
           at <b className="text-white">{formatKes(Number(price))}</b>
+          {freeDelivery ? ' with free delivery' : fee ? ` + ${formatKes(Number(fee))} delivery` : ''}
         </p>
       )}
 

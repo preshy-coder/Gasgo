@@ -52,9 +52,11 @@ export default function Dealers() {
     return 'gas only'
   }
 
+  // Each gas type has its own delivery fee at each shop (0 = free). One trip, so the highest one applies.
+  const cartDeliveryFee = (d: Dealer) => Math.max(0, ...items.map((i) => d.stock.find((st) => st.product_id === i.product_id)?.delivery_fee_kes ?? 0))
+
   // This shop's price for the whole cart (each shop sets its own prices).
-  const cartPrice = (d: Dealer) =>
-    items.reduce((sum, i) => sum + (d.stock.find((st) => st.product_id === i.product_id)?.price_kes ?? 0) * i.quantity, 0)
+  const cartPrice = (d: Dealer) => items.reduce((sum, i) => sum + (d.stock.find((st) => st.product_id === i.product_id)?.price_kes ?? 0) * i.quantity, 0)
 
   // Shops that can take the order first, then by distance or by price (the customer chooses).
   const sorted = [...(dealers.data ?? [])].sort(
@@ -76,9 +78,7 @@ export default function Dealers() {
           </p>
         )}
         {orderType === 'pickup' && !locating && !here && (
-          <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">
-            Turn on location to see the dealers closest to you.
-          </p>
+          <p className="rounded-xl bg-slate-100 p-3 text-sm text-slate-600">Turn on location to see the dealers closest to you.</p>
         )}
 
         {dealers.isSuccess && !locating && okCount > 0 && (
@@ -132,12 +132,20 @@ export default function Dealers() {
                   <p className="text-sm text-slate-600">{d.address}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                     <Clock className="h-3.5 w-3.5" /> {d.opening_hours}
-                    {orderType === 'delivery' && <span>· {d.delivery_fee_kes ? `Delivery ${formatKes(d.delivery_fee_kes)}` : 'Free delivery'}</span>}
+                    {orderType === 'delivery' && a.ok && (
+                      <span>
+                        ·{' '}
+                        {cartDeliveryFee(d) ? `Delivery ${formatKes(cartDeliveryFee(d))}` : <span className="font-semibold text-green-700">Free delivery</span>}
+                      </span>
+                    )}
                   </p>
                   {a.ok ? (
                     <p className="mt-2 flex items-center justify-between gap-2 text-sm font-medium text-green-700">
                       <span>
-                        In stock{okCount > 1 && cartPrice(d) === cheapest ? <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs">Lowest price</span> : null}
+                        In stock
+                        {okCount > 1 && cartPrice(d) === cheapest ? (
+                          <span className="ml-1.5 rounded-full bg-green-100 px-2 py-0.5 text-xs">Lowest price</span>
+                        ) : null}
                       </span>
                       <span className="text-right">
                         <span className="block font-semibold text-ink tabular-nums">{formatKes(cartPrice(d))}</span>

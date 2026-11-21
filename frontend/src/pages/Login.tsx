@@ -56,7 +56,6 @@ export default function Login() {
   const [shopLandmark, setShopLandmark] = useState('')
   const [hours, setHours] = useState(HOURS[0])
   const [radius, setRadius] = useState(5)
-  const [deliveryFee, setDeliveryFee] = useState('150')
   const onShopAddress = useCallback((a: string) => setShopAddress(a), [])
 
   useEffect(() => {
@@ -127,7 +126,6 @@ export default function Login() {
     if (shopName.trim().length < 2) return setError('Enter the name of your shop.')
     if (!isInServiceArea(shopPos)) return setError(OUTSIDE_AREA_MESSAGE)
     if (shopAddress.trim().length < 3) return setError('Enter the shop’s address, e.g. estate and road.')
-    if (deliveryFee === '' || Number(deliveryFee) > 5000) return setError('Enter your delivery fee in KES (0 for free delivery).')
     setBusy(true)
     try {
       const res = await api.registerVendor({
@@ -138,7 +136,6 @@ export default function Login() {
         lng: Number(shopPos.lng.toFixed(6)),
         opening_hours: hours,
         delivery_radius_km: radius,
-        delivery_fee_kes: Number(deliveryFee),
       })
       setUser(res.user)
       // New shops go straight to the Stock screen to add the gas types they sell.
@@ -377,23 +374,6 @@ export default function Login() {
                         </Chip>
                       ))}
                     </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block px-1 text-sm text-white/75" htmlFor="shopfee">
-                      Your delivery fee
-                    </label>
-                    <div className={`${INPUT} flex items-center gap-2`}>
-                      <span className="text-white/50">KES</span>
-                      <input
-                        id="shopfee"
-                        inputMode="numeric"
-                        className="w-full min-w-0 bg-transparent outline-none"
-                        value={deliveryFee}
-                        onChange={(e) => setDeliveryFee(e.target.value.replace(/[^\d]/g, '').slice(0, 4))}
-                      />
-                    </div>
-                    <p className="px-1 text-xs text-white/50">Added to delivery orders, separate from your gas prices. Use 0 for free delivery. You can change it later.</p>
                   </div>
                 </div>
               )}

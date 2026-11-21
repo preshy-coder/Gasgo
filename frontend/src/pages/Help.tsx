@@ -10,7 +10,7 @@ const FAQ = [
   },
   {
     q: 'What fees do I pay?',
-    a: 'The gas and any equipment, at the shop’s own prices; the shop’s delivery fee (delivery orders only, each shop sets its own); and a small fixed Gasgo service fee. You see all three before you pay.',
+    a: 'The gas and any equipment, at the shop’s own prices; a delivery fee (delivery orders only; each shop sets it for each gas type, and some deliver free); and a small fixed Gasgo service fee. You see all three before you pay.',
   },
   {
     q: 'Can I buy a regulator, hose pipe, lighter or grill?',

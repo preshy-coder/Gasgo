@@ -43,10 +43,10 @@ export default function Home() {
     return all.map((b) => ({ brand: b, from: from.get(b) }))
   }, [products.data, purchaseType])
   const visible = products.data?.filter((p) => p.brand === brand && p.type === purchaseType).sort((a, b) => a.size_kg - b.size_kg) ?? []
-  // All sizes are listed; the ones no nearby shop has are shown greyed out.
+  // The common sizes are always listed (greyed out if no nearby shop has them), plus any other size a shop sells.
   const sizeRows =
     brand && visible.length
-      ? GAS_SIZES.map((kg) => ({
+      ? [...new Set([...GAS_SIZES, ...visible.map((p) => p.size_kg)])].sort((a, b) => a - b).map((kg) => ({
           kg,
           product: visible.find((p) => p.size_kg === kg),
         }))
